@@ -34,7 +34,7 @@ The keys are also buttons under the page, for a mouse or a touch screen. Below t
 
 ## What is kept
 
-A page opens with no ayah highlighted; `j` or `k` picks one, and going to `surah:ayah` or the bookmark highlights that ayah. Your page, the bookmark and the day/night choice are kept between sessions. Tashkeel and letter gaps go back to their defaults (tashkeel on, gaps off) in each new session.
+A page opens with no ayah highlighted; `j` or `k` picks one, and going to `surah:ayah` or the bookmark highlights that ayah. The bookmarked ayah shows by its number, shaded and bold. Your page, the bookmark and the day/night choice are kept between sessions. Tashkeel and letter gaps go back to their defaults (tashkeel on, gaps off) in each new session.
 
 ## The page
 

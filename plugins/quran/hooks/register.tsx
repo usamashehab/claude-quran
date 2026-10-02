@@ -348,6 +348,10 @@ export const register: Register = on => {
     if (args === 'font off') {
       return { text: await fontOff($) }
     }
+    // Opened as it is, the page shows no ayah highlighted.
+    if (args === '') {
+      await update($, cursor, () => NONE)
+    }
     const opened = await $.ui.open({
       id: PANE,
       title: 'القرآن الكريم',
@@ -405,11 +409,13 @@ export const register: Register = on => {
     const pageWidth = Math.max(30, ...[...lineTokens.values()].map(tokens => naturalWidth(tokens, space)))
     const width = Math.max(10, Math.min(room, pageWidth))
 
-    const background = (ayah: number | null) => {
+    // Only the ayah picked with j or k is shaded; the bookmarked one shows by its
+    // number alone, shaded and bold, so no ayah is shaded by default.
+    const background = (ayah: number | null, tone: Piece['tone']) => {
       if (ayah !== null && ayah === at) {
         return colors.cursor
       }
-      if (ayah !== null && ayah === markIndex) {
+      if (ayah !== null && ayah === markIndex && tone === 'marker') {
         return colors.mark
       }
 
@@ -417,7 +423,7 @@ export const register: Register = on => {
     }
     const piece = ({ text, ayah, tone }: Piece) => {
       const color = tone === 'text' ? colors.text : colors.gold
-      const style = { backgroundColor: background(ayah), bold: tone === 'marker' && ayah === markIndex }
+      const style = { backgroundColor: background(ayah, tone), bold: tone === 'marker' && ayah === markIndex }
       if (tone === 'text' || !isCells) {
         return (
           <Text color={color} {...style}>
