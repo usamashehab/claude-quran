@@ -17,8 +17,9 @@ const ARABIC_RANGES = [
 
 const hex = (n: number) => `0x${n.toString(16).toUpperCase().padStart(4, '0')}`
 
-// Monospace fonts give up their Arabic glyphs, and Kawkab Mono is the first
-// font they fall back to, so only Arabic changes.
+// Monospace fonts give up their Arabic glyphs, and Kawkab Mono goes right after
+// the monospace font asked for, ahead of the system's own fallbacks (Ubuntu puts
+// proportional Noto fonts there), so only Arabic changes.
 export const FONTCONFIG = `<?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
 <!-- Written by the Claude Code quran mod (/quran font). Remove with /quran font off. -->
@@ -36,7 +37,7 @@ ${ARABIC_RANGES.map(([from, to]) => `          <range><int>${hex(from ?? 0)}</in
   </match>
   <match target="pattern">
     <test name="family" compare="contains" ignore-blanks="true"><string>mono</string></test>
-    <edit name="family" mode="append_last" binding="weak"><string>Kawkab Mono</string></edit>
+    <edit name="family" mode="append" binding="weak"><string>Kawkab Mono</string></edit>
   </match>
 </fontconfig>
 `
