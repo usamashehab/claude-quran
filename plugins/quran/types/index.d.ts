@@ -8,6 +8,7 @@ declare module 'claude-code' {
       cursor: number
       bookmark: Bookmark | null
       isPlain: boolean
+      isSpaced: boolean
       theme: Theme
     }
   }

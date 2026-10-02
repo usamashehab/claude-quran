@@ -23,6 +23,7 @@ Keys inside the pane:
 | `b` | Go to the bookmark |
 | `d` | Day / night page |
 | `t` | Tashkeel on / off |
+| `g` | Letter gaps on / off: a cell after letters that do not join the next one (أَ حْمِلُكُمْ), and 2 between words |
 | `Esc` | Close |
 
 Your page, the highlighted ayah, the bookmark and the day/night choice are kept between sessions.

@@ -1,4 +1,8 @@
 // Lays a page's ayahs out as justified Mushaf lines of a fixed cell width.
+// `space` is the cells between two words: 2 when letters are spaced out, so a
+// word break stays wider than the gap inside a word.
+
+const LETTER = /[\u0620-\u064A\u0671-\u06D3]/
 
 export type Tone = 'text' | 'marker' | 'symbol'
 // `ayah` is the ayah's index on the page; null for a gap between two ayahs.
@@ -17,18 +21,18 @@ export const cells = (text: string) => {
   return count
 }
 
-function fill(tokens: Token[], width: number): Token[][] {
+function fill(tokens: Token[], width: number, space: number): Token[][] {
   const lines: Token[][] = []
   let line: Token[] = []
   let used = 0
   for (const token of tokens) {
     const size = cells(token.text)
-    if (line.length > 0 && used + 1 + size > width) {
+    if (line.length > 0 && used + space + size > width) {
       lines.push(line)
       line = []
       used = 0
     }
-    used += (line.length > 0 ? 1 : 0) + size
+    used += (line.length > 0 ? space : 0) + size
     line.push(token)
   }
   if (line.length > 0) {
@@ -52,9 +56,37 @@ function merge(pieces: Piece[]): Piece[] {
   return merged
 }
 
+// Letters that never join the letter after them.
+const RIGHT_JOINING = /[اأإآٱدذرزوؤةء]/
+const MARKS = /\p{M}/u
+
+// The word with one cell after each letter that does not join the next one, as
+// print leaves a small gap there (أَ حْمِلُكُمْ); a cell is the least a terminal can leave.
+export function spaceOut(word: string): string {
+  const chars = Array.from(word)
+  let out = ''
+  chars.forEach((char, i) => {
+    out += char
+    if (MARKS.test(char)) {
+      return
+    }
+    let next = i + 1
+    while (next < chars.length && MARKS.test(chars[next] ?? '')) {
+      next++
+    }
+    const following = chars[next]
+    if (RIGHT_JOINING.test(char) && following && LETTER.test(following)) {
+      // The gap goes after the letter's own marks, which come next in the string.
+      out += '\u0000'
+    }
+  })
+
+  // Marks of a letter follow it, so move each gap past them.
+  return out.replace(/\u0000(\p{M}*)/gu, '$1 ')
+}
+
 // Letters that join the letter after them, so a kashida (ـ) may follow them.
 const DUAL_JOINING = /[بتثجحخسشصضطظعغفقكلمنهيىئ]/
-const LETTER = /[\u0620-\u064A\u0671-\u06D3]/
 const ALEF = /[اأإآٱ]/
 
 // The word with one kashida at its last joint, as the Mushaf stretches a line;
@@ -107,13 +139,13 @@ const widthOf = (line: Token[]) => line.reduce((sum, token) => sum + cells(token
 
 // One line stretched to `width`, first by kashida and then by widening the gaps
 // between words, or centred.
-export function justify(words: Token[], width: number, isCentred: boolean): Piece[] {
+export function justify(words: Token[], width: number, isCentred: boolean, space = 1): Piece[] {
   const gaps = words.length - 1
   // A line of one word cannot stretch.
   const centre = isCentred || gaps === 0
-  const line = centre ? words : stretch(words, width - widthOf(words) - gaps)
+  const line = centre ? words : stretch(words, width - widthOf(words) - gaps * space)
   const used = widthOf(line)
-  const free = Math.max(0, width - used - gaps)
+  const free = Math.max(0, width - used - gaps * space)
   const pieces: Piece[] = []
   const left = centre ? Math.floor(free / 2) : 0
   if (left > 0) {
@@ -124,11 +156,11 @@ export function justify(words: Token[], width: number, isCentred: boolean): Piec
       const extra = centre ? 0 : Math.floor(free / gaps) + (at <= free % gaps ? 1 : 0)
       const before = line[at - 1]
       const ayah = before && before.ayah === token.ayah ? token.ayah : null
-      pieces.push({ text: ' '.repeat(1 + extra), ayah, tone: 'text' })
+      pieces.push({ text: ' '.repeat(space + extra), ayah, tone: 'text' })
     }
     pieces.push({ text: token.text, ayah: token.ayah, tone: token.tone })
   })
-  const right = width - left - used - gaps - (centre ? 0 : free)
+  const right = width - left - used - gaps * space - (centre ? 0 : free)
   if (right > 0) {
     pieces.push({ text: ' '.repeat(right), ayah: null, tone: 'text' })
   }
@@ -136,12 +168,12 @@ export function justify(words: Token[], width: number, isCentred: boolean): Piec
   return merge(pieces)
 }
 
-// The cells a line takes with single spaces between its tokens.
-export const naturalWidth = (line: Token[]) => widthOf(line) + Math.max(0, line.length - 1)
+// The cells a line takes with `space` cells between its tokens.
+export const naturalWidth = (line: Token[], space = 1) => widthOf(line) + Math.max(0, line.length - 1) * space
 
 // Reflows tokens into lines of `width`: each justified, the last centred.
-export function layout(tokens: Token[], width: number): Piece[][] {
-  const lines = fill(tokens, width)
+export function layout(tokens: Token[], width: number, space = 1): Piece[][] {
+  const lines = fill(tokens, width, space)
 
-  return lines.map((line, index) => justify(line, width, index === lines.length - 1))
+  return lines.map((line, index) => justify(line, width, index === lines.length - 1, space))
 }

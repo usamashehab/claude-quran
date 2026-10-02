@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { cells, kashida, layout } from '../hooks/layout'
+import { cells, kashida, layout, spaceOut } from '../hooks/layout'
 
 // A small stand-in for data/quran.json: the tests cannot read files.
 // Pages hold Mushaf lines; every page but the few the test visits holds one ayah of surah 114.
@@ -107,4 +107,12 @@ test('kashida stretches a joint, never lam-alef or a non-joining letter', () => 
   expect(kashida('قُلُوبِهِمْ')).toBe('قُلُوبِهِـمْ')
   expect(kashida('لَا')).toBeUndefined()
   expect(kashida('دَارُ')).toBeUndefined()
+})
+
+test('spacing opens a cell after letters that do not join the next one', () => {
+  expect(spaceOut('أَحْمِلُكُمْ')).toBe('أَ حْمِلُكُمْ')
+  expect(spaceOut('ٱلدَّمْعِ')).toBe('ٱ لدَّ مْعِ')
+  // A letter at the end of the word needs no gap: the word break follows.
+  expect(spaceOut('قَالُوا')).toBe('قَا لُو ا')
+  expect(spaceOut('عَلَيْهِ')).toBe('عَلَيْهِ')
 })

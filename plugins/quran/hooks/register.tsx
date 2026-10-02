@@ -3,7 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Bookmark, Theme } from '../types'
 import { CONF_NAME, FONT_FILES, FONTCONFIG, OTHER_SYSTEMS } from './font'
-import { cells, justify, layout, naturalWidth } from './layout'
+import { cells, justify, layout, naturalWidth, spaceOut } from './layout'
 import type { Piece, Token } from './layout'
 
 const PANE = 'quran'
@@ -16,6 +16,7 @@ const page = atom({ plugin: 'quran', key: 'page' } as const, 1)
 const cursor = atom({ plugin: 'quran', key: 'cursor' } as const, 0)
 const bookmark = atom({ plugin: 'quran', key: 'bookmark' } as const, null)
 const isPlain = atom({ plugin: 'quran', key: 'isPlain' } as const, false)
+const isSpaced = atom({ plugin: 'quran', key: 'isSpaced' } as const, true)
 const theme = atom({ plugin: 'quran', key: 'theme' } as const, 'day')
 
 const PALETTES = {
@@ -275,12 +276,18 @@ async function fontOff($: EngineInterface): Promise<string> {
 }
 
 // A line's words as tokens, each knowing its ayah's place on the page.
-function tokensOf(line: Segment[], indexOf: (s: number, a: number) => number, show: (t: string) => string) {
+function tokensOf(
+  line: Segment[],
+  indexOf: (s: number, a: number) => number,
+  show: (t: string) => string,
+  isSpacedOut: boolean,
+) {
   const tokens: Token[] = []
   for (const [surah, ayah, words, ends] of line) {
     const index = indexOf(surah, ayah)
     for (const word of show(words).split(/\s+/).filter(Boolean)) {
-      tokens.push({ text: word, ayah: index, tone: /^[۞۩]$/.test(word) ? 'symbol' : 'text' })
+      const isSymbol = /^[۞۩]$/.test(word)
+      tokens.push({ text: isSpacedOut && !isSymbol ? spaceOut(word) : word, ayah: index, tone: isSymbol ? 'symbol' : 'text' })
     }
     if (ends) {
       // U+FD3F then U+FD3E: a bidi terminal draws them as ﴾n﴿ around the number.
@@ -352,7 +359,12 @@ export const register: Register = on => {
     const at = await read($, cursor)
     const mark = await read($, bookmark)
     const colors = PALETTES[await read($, theme)]
-    const show = (await read($, isPlain)) ? plain : (text: string) => text
+    const spaced = await read($, isSpaced)
+    const unmarked = (await read($, isPlain)) ? plain : (text: string) => text
+    const show = unmarked
+    // Spaced out, words open a cell after each non-joining letter and stand 2 cells apart.
+    const space = spaced ? 2 : 1
+    const spaceLine = (text: string) => (spaced ? text.split(' ').map(spaceOut).join('  ') : text)
     const sheet = pageOf(q, current)
     const ayahs = ayahsOf(q, current)
     const indexOf = (s: number, a: number) => ayahs.findIndex(one => one.surah === s && one.ayah === a)
@@ -360,8 +372,8 @@ export const register: Register = on => {
 
     // The page is as wide as its longest Mushaf line. Where the pane has room for
     // that, the page keeps the Mushaf's own lines; narrower, its text reflows.
-    const lineTokens = new Map(sheet.l.filter(isWords).map(line => [line, tokensOf(line, indexOf, show)]))
-    const pageWidth = Math.max(30, ...[...lineTokens.values()].map(naturalWidth))
+    const lineTokens = new Map(sheet.l.filter(isWords).map(line => [line, tokensOf(line, indexOf, unmarked, spaced)]))
+    const pageWidth = Math.max(30, ...[...lineTokens.values()].map(tokens => naturalWidth(tokens, space)))
     const room = e.props.bodyColumns - 6
     const isMushaf = room >= pageWidth
     const width = isMushaf ? pageWidth : Math.max(10, room)
@@ -391,7 +403,7 @@ export const register: Register = on => {
       </Text>
     )
     const banner = (surah: number) => {
-      const name = ` سُورَةُ ${show(surahOf(q, surah)[0])} `
+      const name = ` ${spaceLine(`سُورَةُ ${show(surahOf(q, surah)[0])}`)} `
       const side = Math.max(1, Math.floor((width - cells(name) - 2) / 2))
       const rest = Math.max(0, width - cells(name) - 2 - side * 2)
 
@@ -425,7 +437,7 @@ export const register: Register = on => {
     lineOfAyah = new Map()
     let run: Token[] = []
     const flush = () => {
-      for (const pieces of layout(run, width)) {
+      for (const pieces of layout(run, width, space)) {
         addWords(pieces)
       }
       run = []
@@ -438,7 +450,7 @@ export const register: Register = on => {
           continue
         }
         // Pages 1 and 2 are set centred in the Mushaf; a very short line would stretch too far.
-        addWords(justify(tokens, width, current <= 2 || naturalWidth(tokens) < width * 0.4))
+        addWords(justify(tokens, width, current <= 2 || naturalWidth(tokens, space) < width * 0.4, space))
         continue
       }
       flush()
@@ -447,7 +459,7 @@ export const register: Register = on => {
       } else if ('h' in line) {
         addRow(banner(line.h))
       } else {
-        addRow(plainLine(show(BASMALA)))
+        addRow(plainLine(spaceLine(show(BASMALA))))
       }
     }
     flush()
@@ -502,6 +514,13 @@ export const register: Register = on => {
             onPress={() => update($, isPlain, (value: boolean) => !value)}
           />
           <Button plain key="theme" hotkey="d" label="Day/Night" onPress={() => toggleTheme($)} />
+          <Button
+            plain
+            key="spacing"
+            hotkey="g"
+            label="Letter gaps"
+            onPress={() => update($, isSpaced, (value: boolean) => !value)}
+          />
         </Box>
         {Input && (
           <Box width={width + 6}>
