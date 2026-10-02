@@ -118,3 +118,32 @@ test('spacing opens a cell after letters that do not join the next one', () => {
   expect(spaceOut('قَالُوا')).toBe('قَا لُو ا')
   expect(spaceOut('عَلَيْهِ')).toBe('عَلَيْهِ')
 })
+
+test('the apps, phones included, get each ayah as one run of text', async ($, on) => {
+  const saved = world(on)
+  for (const surface of ['mobile', 'vscode', 'desktop'] as const) {
+    saved.clear()
+    const ui = await $.ui.mount({ plugin: 'quran', surface, ...PANE, props: { ...PANE.props, bodyColumns: 40 } })
+    // The page is the session's, so it carries over from the surface before: start at 1.
+    await ui.press({ key: 'prev' })
+    await ui.press({ key: 'next' })
+
+    // The app sets and wraps the text in its own font: no padding, kashida or guards.
+    expect(await ui.find({ type: 'Text', text: /ذَٰلِكَ ٱلْكِتَٰبُ/ })).toBeDefined()
+    expect(await ui.findAll({ type: 'Text', text: /ـ/ })).toHaveLength(0)
+
+    await ui.press({ key: 'down' })
+    await ui.press({ key: 'mark' })
+    expect(saved.get('bookmark')).toEqual({ page: 2, surah: 2, ayah: 2 })
+    await ui.unmount()
+  }
+})
+
+test('a phone-width terminal gives the surah and the juz a line each', async ($, on) => {
+  world(on)
+  const ui = await $.ui.mount({ plugin: 'quran', surface: 'terminal', ...PANE, props: { ...PANE.props, bodyColumns: 20 } })
+
+  const juz = await ui.find({ type: 'Text', text: /^\s*الجزء/ })
+  expect(juz?.text).not.toContain('سورة')
+  await ui.unmount()
+})

@@ -30,6 +30,8 @@ Your page, the highlighted ayah, the bookmark and the day/night choice are kept 
 
 The page keeps the Mushaf's own lines when the pane has room for its longest line (usually 65 to 80 columns, plus 6 for the frame). In a narrower pane the text reflows to fit, with the same highlights and bookmarks.
 
+In the Claude desktop and mobile apps and in VS Code, the page is set in the app's own font, which joins the letters and orders the text itself. On a phone the page flows like a book, and on a wide screen it keeps the Mushaf's lines. The mobile app has no text field yet, so going to a page there is by the buttons or `/quran 50`.
+
 ## The Arabic font
 
 Terminals draw text in their own monospace font, and most monospace fonts draw Arabic poorly. `/quran font` fixes that:

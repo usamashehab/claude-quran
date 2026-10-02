@@ -189,6 +189,21 @@ export function justify(words: Token[], width: number, isCentred: boolean, space
   return merge(pieces)
 }
 
+// A line's tokens with single spaces, for a surface that sets text in its own
+// font and so needs no padding, kashida or guards.
+export function inline(line: Token[]): Piece[] {
+  const pieces: Piece[] = []
+  line.forEach((token, at) => {
+    const before = line[at - 1]
+    if (before) {
+      pieces.push({ text: ' ', ayah: before.ayah === token.ayah ? token.ayah : null, tone: 'text' })
+    }
+    pieces.push({ ...token })
+  })
+
+  return merge(pieces)
+}
+
 // The cells a line takes with `space` cells between its tokens.
 export const naturalWidth = (line: Token[], space = 1) => widthOf(guard(line)) + Math.max(0, line.length - 1) * space
 

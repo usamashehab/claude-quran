@@ -3,7 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Bookmark, Theme } from '../types'
 import { CONF_NAME, FONT_FILES, FONTCONFIG, OTHER_SYSTEMS } from './font'
-import { cells, GUARD, justify, layout, naturalWidth, spaceOut } from './layout'
+import { cells, GUARD, inline, justify, layout, naturalWidth, spaceOut } from './layout'
 import type { Piece, Token } from './layout'
 
 const PANE = 'quran'
@@ -372,18 +372,27 @@ export const register: Register = on => {
     const unmarked = (await read($, isPlain)) ? plain : (text: string) => text
     const show = unmarked
     // Spaced out, words open a cell after each non-joining letter and stand 2 cells apart.
-    const space = spaced ? 2 : 1
-    const spaceLine = (text: string) => (spaced ? text.split(' ').map(spaceOut).join('  ') : text)
+    const space = e.surface === 'terminal' && spaced ? 2 : 1
+    const spaceLine = (text: string) =>
+      e.surface === 'terminal' && spaced ? text.split(' ').map(spaceOut).join('  ') : text
     const sheet = pageOf(q, current)
     const ayahs = ayahsOf(q, current)
     const indexOf = (s: number, a: number) => ayahs.findIndex(one => one.surah === s && one.ayah === a)
     const markIndex = mark === null ? -1 : indexOf(mark.surah, mark.ayah)
 
+    // The terminal sets text in cells, so the page pads, stretches and guards its
+    // lines itself; the apps (desktop, mobile, VS Code) set it in their own fonts,
+    // which join letters and order right-to-left text, so they get plain runs.
+    const isCells = e.surface === 'terminal'
+    const lettersApart = isCells && spaced
+    // A phone-width pane keeps less padding inside the frame.
+    const padding = e.props.bodyColumns < 56 ? 1 : 2
+    const room = e.props.bodyColumns - 2 - padding * 2
+
     // The page is as wide as its longest Mushaf line. Where the pane has room for
     // that, the page keeps the Mushaf's own lines; narrower, its text reflows.
-    const lineTokens = new Map(sheet.l.filter(isWords).map(line => [line, tokensOf(line, indexOf, unmarked, spaced)]))
+    const lineTokens = new Map(sheet.l.filter(isWords).map(line => [line, tokensOf(line, indexOf, unmarked, lettersApart)]))
     const pageWidth = Math.max(30, ...[...lineTokens.values()].map(tokens => naturalWidth(tokens, space)))
-    const room = e.props.bodyColumns - 6
     const isMushaf = room >= pageWidth
     const width = isMushaf ? pageWidth : Math.max(10, room)
 
@@ -400,7 +409,7 @@ export const register: Register = on => {
     const piece = ({ text, ayah, tone }: Piece) => {
       const color = tone === 'text' ? colors.text : colors.gold
       const style = { backgroundColor: background(ayah), bold: tone === 'marker' && ayah === markIndex }
-      if (tone === 'text') {
+      if (tone === 'text' || !isCells) {
         return (
           <Text color={color} {...style}>
             {text}
@@ -409,19 +418,45 @@ export const register: Register = on => {
       }
 
       // A sign's guards take the background colour; see GUARD.
-      return text.split(/(\u0640)/).filter(Boolean).map(part => (
+      return text.split(/(ـ)/).filter(Boolean).map(part => (
         <Text color={part === GUARD ? style.backgroundColor : color} {...style}>
           {part}
         </Text>
       ))
     }
-    const plainLine = (text: string, color: string = colors.text) => (
-      <Text color={color} backgroundColor={colors.page}>
-        {centred(text, width)}
-      </Text>
-    )
+    // A run of words: cells laid out by the page on the terminal, one text the
+    // app sets and wraps elsewhere.
+    const words = (pieces: Piece[]) =>
+      isCells ? (
+        pieces.map(piece)
+      ) : (
+        <Text color={colors.text} backgroundColor={colors.page}>
+          {pieces.map(piece)}
+        </Text>
+      )
+    const plainLine = (text: string, color: string = colors.text) =>
+      isCells ? (
+        <Text color={color} backgroundColor={colors.page}>
+          {centred(text, width)}
+        </Text>
+      ) : (
+        <Box justifyContent="center">
+          <Text color={color} backgroundColor={colors.page}>
+            {text}
+          </Text>
+        </Box>
+      )
     const banner = (surah: number) => {
       const name = ` ${spaceLine(`سُورَةُ ${show(surahOf(q, surah)[0])}`)} `
+      if (!isCells) {
+        return (
+          <Box justifyContent="center" backgroundColor={colors.banner}>
+            <Text color={colors.gold} backgroundColor={colors.banner}>
+              ۞ <Text color={colors.text} backgroundColor={colors.banner} bold>{name}</Text> ۞
+            </Text>
+          </Box>
+        )
+      }
       const side = Math.max(1, Math.floor((width - cells(name) - 2) / 2))
       const rest = Math.max(0, width - cells(name) - 2 - side * 2)
 
@@ -448,15 +483,22 @@ export const register: Register = on => {
           lineOfAyah.set(ayah, n)
         }
       }
-      rows.push(<Box key={`l${n}`}>{pieces.map(piece)}</Box>)
+      rows.push(
+        <Box key={`l${n}`} justifyContent="center">
+          {words(pieces)}
+        </Box>,
+      )
     }
     const addRow = (row: JSX.Element) => rows.push(<Box key={`l${rows.length}`}>{row}</Box>)
 
     lineOfAyah = new Map()
     let run: Token[] = []
     const flush = () => {
-      for (const pieces of layout(run, width, space)) {
-        addWords(pieces)
+      if (run.length > 0) {
+        // An app wraps the run itself, as a paragraph.
+        for (const pieces of isCells ? layout(run, width, space) : [inline(run)]) {
+          addWords(pieces)
+        }
       }
       run = []
     }
@@ -468,7 +510,8 @@ export const register: Register = on => {
           continue
         }
         // Pages 1 and 2 are set centred in the Mushaf; a very short line would stretch too far.
-        addWords(justify(tokens, width, current <= 2 || naturalWidth(tokens, space) < width * 0.4, space))
+        const isCentred = current <= 2 || naturalWidth(tokens, space) < width * 0.4
+        addWords(isCells ? justify(tokens, width, isCentred, space) : inline(tokens))
         continue
       }
       flush()
@@ -486,7 +529,32 @@ export const register: Register = on => {
       .map(s => `سورة ${show(surahOf(q, s)[0])}`)
       .join(' · ')
     const where = `الجزء ${toArabicDigits(sheet.j)}`
-    const headerGap = ' '.repeat(Math.max(1, width - cells(surahNames) - cells(where)))
+    // Too narrow for both, the surah and the juz take a line each.
+    const header =
+      !isCells ? (
+        <Box justifyContent="space-between" flexDirection="row-reverse">
+          <Text color={colors.dim} backgroundColor={colors.page}>{surahNames}</Text>
+          <Text color={colors.dim} backgroundColor={colors.page}>{where}</Text>
+        </Box>
+      ) : cells(surahNames) + cells(where) + 1 <= width ? (
+        <Text color={colors.dim} backgroundColor={colors.page}>
+          {surahNames}
+          {' '.repeat(width - cells(surahNames) - cells(where))}
+          {where}
+        </Text>
+      ) : (
+        <Box flexDirection="column">
+          {plainLine(surahNames, colors.dim)}
+          {plainLine(where, colors.dim)}
+        </Box>
+      )
+    const rule = isCells ? (
+      <Text color={colors.frame} backgroundColor={colors.page}>
+        {'─'.repeat(width)}
+      </Text>
+    ) : (
+      plainLine('─'.repeat(24), colors.frame)
+    )
 
     return (
       <Box flexDirection="column" alignItems="center">
@@ -495,26 +563,19 @@ export const register: Register = on => {
           borderStyle="double"
           borderColor={colors.frame}
           backgroundColor={colors.page}
-          paddingX={2}
+          paddingX={padding}
         >
-          <Text color={colors.dim} backgroundColor={colors.page}>
-            {surahNames}
-            {headerGap}
-            {where}
-          </Text>
-          <Text color={colors.frame} backgroundColor={colors.page}>
-            {'─'.repeat(width)}
-          </Text>
+          {header}
+          {rule}
           {rows.map((row, i) => (
-            // A blank row between lines keeps the tashkeel of one line clear of the next.
+            // On the terminal a blank row between lines keeps the tashkeel of one
+            // line clear of the next; an app's line height does that itself.
             <Box key={`r${i}`} flexDirection="column">
-              {i > 0 && plainLine('')}
+              {i > 0 && isCells && plainLine('')}
               {row}
             </Box>
           ))}
-          <Text color={colors.frame} backgroundColor={colors.page}>
-            {'─'.repeat(width)}
-          </Text>
+          {rule}
           <Box key="footer">{plainLine(`❁  ${toArabicDigits(current)}  ❁`, colors.gold)}</Box>
           {/* On a line of its own: beside the ornaments, the terminal would reorder them. */}
           {sheet.q && <Box key="quarter">{plainLine(quarterOf(sheet.q), colors.dim)}</Box>}
@@ -543,7 +604,7 @@ export const register: Register = on => {
           />
         </Box>
         {Input && (
-          <Box width={width + 6}>
+          <Box width={width + 2 + padding * 2}>
             <Input
               key="goto"
               placeholder="Go to: page, surah:ayah, or b"
