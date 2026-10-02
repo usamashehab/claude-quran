@@ -1,17 +1,17 @@
 """Builds plugins/quran/fonts/VazirCodeQuran.ttf, the font terminals draw Arabic in.
 
-    python3 -m pip install fonttools
+    python3 -m pip install fonttools numpy pillow
     python3 scripts/build_font.py [--cache DIR]
 
 Starts from Vazir Code and changes what a terminal draws badly:
 
-- A terminal clips each glyph to its row, about 0.93 em above the baseline and
-  0.24 below, so a kasra under a deep letter (سَبِيلٍ) or a mark above a tall one
-  was cut off. Arabic is drawn a little shorter and higher, and the few marks
-  still past the row's edge are moved in to it.
+- A terminal clips each glyph to its row, about 0.24 em below the baseline, so
+  a kasra or kasratan under a deep letter (سَبِيلٍ) was cut off, as were the dots
+  of final ي. Each letter's kasra is placed in the row clear of the letter, the
+  dots moving up where that makes room (ب) or brings them into the row (ي).
 - Its tanween looked like single marks at terminal sizes: fathatan and kasratan
-  are drawn as two well-apart strokes, and dammatan as two dammas, one turned,
-  as the Mushaf draws it. Shadda and tanween stack as two marks, so the new
+  are drawn as two staggered strokes side by side, and dammatan as two dammas,
+  one turned, as the Mushaf draws them. Shadda and tanween stack as two marks, so the new
   tanween shows there too.
 - Its letters are 0.5 em wide, but most terminal cells are wider (0.5 to 0.62 em),
   and a terminal centres a narrow letter in its cell, so joined letters showed a
@@ -27,28 +27,42 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
+import numpy
+from fontTools.pens.basePen import BasePen
+from fontTools.pens.boundsPen import BoundsPen
 from fontTools.pens.recordingPen import DecomposingRecordingPen
 from fontTools.pens.reverseContourPen import ReverseContourPen
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib import TTFont
 from fontTools.ttLib.tables._g_l_y_f import flagOverlapSimple
+from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / 'plugins' / 'quran' / 'fonts' / 'VazirCodeQuran.ttf'
 SOURCE = 'https://github.com/rastikerdar/vazir-code-font/releases/download/v1.1.2/vazir-code-font-v1.1.2.zip'
 FAMILY = 'Vazir Code Quran'
 
-# The row a terminal draws in, in font units (1000 to the em), with a little to
-# spare: common monospace fonts reach 0.93 to 0.94 em up and 0.24 to 0.26 down.
-LOW, HIGH = -230, 925
-# Arabic is drawn this much shorter and this much higher, to make room for marks.
-HEIGHT, RISE = 0.88, 90
+# The bottom of the row a terminal draws in, in font units (1000 to the em):
+# common monospace fonts reach 0.24 to 0.26 em below the baseline.
+LOW = -255
+# Placing marks under letters: the grid ink is compared on, the clear margin
+# kept round a mark (in grid steps), how close under the baseline a mark may
+# come, and the step a mark or dot moves up by.
+GRID, MARGIN, GAP, STEP_UP = 10, 2, 20, 10
+# How far a mark may move to the side of a letter when nothing under it fits.
+SIDE = 120
+# The kasra's height against the font's, so it fits under a dot in the row.
+KASRA_HEIGHT = 0.7
+LEFT, RIGHT, BOTTOM, TOP = -400, 1000, -700, 1300
 # How far a stroke reaches past the letter's edge: enough to meet the next
 # letter's stroke in a cell up to 0.5 + 2 * 0.08 em wide.
 REACH = 80
-# Fathatan and kasratan: each stroke this much flatter than the single mark, the
-# second this far from the first.
-FLAT, STEP = 0.7, 125
+# Fathatan and kasratan: two strokes side by side, each this much narrower than
+# the single mark and this far apart, the left one lower, as the Mushaf staggers
+# them; kasratan less, to fit under a dot in the row. They stay about as tall as
+# the single mark, so they fit where it does.
+NARROW, APART = 0.62, 150
+STAGGER = {'uni064B': 25, 'uni064D': 10}
 # Dammatan: each damma this much smaller than the single one, this far apart.
 DAMMA_SCALE, DAMMA_GAP = 0.72, 20
 
@@ -56,12 +70,11 @@ DAMMA_SCALE, DAMMA_GAP = 0.72, 20
 # below and above a letter.
 FINA, MEDI, INIT = 0, 1, 2
 MARK_LIGATURES = (3, 4)
-BELOW, ABOVE = 4, 7
+BELOW = 4
 FATHA, DAMMA, KASRA, SHADDA = 'uni064E', 'uni064F', 'uni0650', 'uni0651'
 FATHATAN, DAMMATAN, KASRATAN = 'uni064B', 'uni064C', 'uni064D'
-# The marks the Quran text puts on a letter: each must fit in the row on every letter.
-MARKS_BELOW = [KASRA, KASRATAN, 'uni0655']
-MARKS_ABOVE = [FATHA, DAMMA, SHADDA, 'uni0652', 'uni0653', 'uni0670', FATHATAN, DAMMATAN]
+# The marks the Quran text puts under a letter: each must fit in the row.
+MARKS_BELOW = [KASRA, KASRATAN]
 ARABIC = [(0x0600, 0x06FF), (0x0750, 0x077F), (0x08A0, 0x08FF), (0xFB50, 0xFDFF), (0xFE70, 0xFEFF)]
 
 
@@ -136,18 +149,28 @@ def letters(font):
     return {name for name in names if classes.get(name) != 3 and bounds(font, name)}
 
 
+def flatten_kasra(font):
+    """A flatter kasra, kept to the font's top edge (the one under the letter)."""
+    top = bounds(font, KASRA)[3]
+    save(font, KASRA, mapped(outline(font, KASRA), fy=lambda y: top + (y - top) * KASRA_HEIGHT))
+
+
 def tanween(font):
-    """Each new tanween keeps the old one's edge nearest the letter, so it sits
-    where the font placed the old one."""
-    for double, mark, away in ((FATHATAN, FATHA, 1), (KASRATAN, KASRA, -1)):
-        _, y0, _, y1 = bounds(font, mark)
-        near = y0 if away > 0 else y1
-        stroke = mapped(outline(font, mark), fy=lambda y, near=near: near + (y - near) * FLAT)
-        _, old0, _, old1 = bounds(font, double)
-        to = (old0 if away > 0 else old1) - near
-        first = mapped(stroke, fy=lambda y, to=to: y + to)
-        second = mapped(first, fy=lambda y, away=away: y + away * STEP)
-        save(font, double, first, second)
+    """Each new tanween keeps the old one's centre and its edge nearest the
+    letter, so it sits where the font placed the old one."""
+    for double, mark, is_above in ((FATHATAN, FATHA, True), (KASRATAN, KASRA, False)):
+        stagger = STAGGER[double]
+        x0, y0, x1, y1 = bounds(font, mark)
+        old_x0, old_y0, old_x1, old_y1 = bounds(font, double)
+        centre, old_centre = (x0 + x1) / 2, (old_x0 + old_x1) / 2
+        # Away from the letter, the lower stroke is the one nearer it for kasratan.
+        near = old_y0 - y0 if is_above else old_y1 - y1
+        drop = stagger if is_above else 0
+        right = mapped(outline(font, mark),
+                       fx=lambda x: old_centre + APART / 2 + (x - centre) * NARROW,
+                       fy=lambda y: y + near + drop)
+        left = mapped(right, fx=lambda x: x - APART, fy=lambda y: y - stagger)
+        save(font, double, right, left)
 
     x0, y0, x1, _ = bounds(font, DAMMA)
     old_x0, old_y0, old_x1, _ = bounds(font, DAMMATAN)
@@ -174,69 +197,148 @@ def unligate_tanween(font):
                     del table.ligatures[first]
 
 
-def arabic_marks(font):
-    classes = font['GDEF'].table.GlyphClassDef.classDefs
-    return {name for name, kind in classes.items() if kind == 3 and name.startswith('uni06')}
+class Polygons(BasePen):
+    """Outlines as polygons, curves cut into short lines."""
+
+    def __init__(self):
+        super().__init__(None)
+        self.polygons, self.current = [], []
+
+    def _moveTo(self, point):
+        self.current = [point]
+
+    def _lineTo(self, point):
+        self.current.append(point)
+
+    def _curveToOne(self, one, two, three):
+        start = self.current[-1]
+        for step in range(1, 9):
+            t = step / 8
+            self.current.append(tuple((1 - t) ** 3 * a + 3 * (1 - t) ** 2 * t * b + 3 * (1 - t) * t * t * c + t ** 3 * d
+                                      for a, b, c, d in zip(start, one, two, three)))
+
+    def _qCurveToOne(self, one, two):
+        start = self.current[-1]
+        for step in range(1, 9):
+            t = step / 8
+            self.current.append(tuple((1 - t) ** 2 * a + 2 * (1 - t) * t * b + t * t * c for a, b, c in zip(start, one, two)))
+
+    def _closePath(self):
+        self.polygons.append(self.current)
+        self.current = []
 
 
-def lift(font, names):
-    """Arabic letters and marks a little shorter and higher, so the marks under
-    and over a letter fall in the row. Every glyph and anchor moves alike, so
-    letters, dots and marks keep their places against each other."""
-    move = lambda y: round(y * HEIGHT + RISE)
-    for name in names:
-        save(font, name, mapped(outline(font, name), fy=move))
-    for lookup in font['GPOS'].table.LookupList.Lookup:
-        for table in lookup.SubTable:
-            anchors = []
-            for coverage, array, records, field in (
-                ('MarkCoverage', 'MarkArray', 'MarkRecord', 'MarkAnchor'),
-                ('Mark1Coverage', 'Mark1Array', 'MarkRecord', 'MarkAnchor'),
-            ):
-                if hasattr(table, coverage):
-                    for glyph, record in zip(getattr(table, coverage).glyphs, getattr(getattr(table, array), records)):
-                        if glyph in names:
-                            anchors.append(getattr(record, field))
-            for coverage, array, records, field in (
-                ('BaseCoverage', 'BaseArray', 'BaseRecord', 'BaseAnchor'),
-                ('Mark2Coverage', 'Mark2Array', 'Mark2Record', 'Mark2Anchor'),
-            ):
-                if hasattr(table, coverage):
-                    for glyph, record in zip(getattr(table, coverage).glyphs, getattr(getattr(table, array), records)):
-                        if glyph in names:
-                            anchors += [anchor for anchor in getattr(record, field) if anchor]
-            for anchor in anchors:
-                anchor.YCoordinate = move(anchor.YCoordinate)
+def contours(value):
+    """An outline split into its closed contours."""
+    out, current = [], []
+    for operator, points in value:
+        current.append((operator, points))
+        if operator in ('closePath', 'endPath'):
+            out.append(current)
+            current = []
+    return out
 
 
-def clamp(font, names):
-    """The few marks still past the row, under a deep letter or over a hamza, move
-    in to its edge."""
-    moved_anchors = 0
-    for lookup, marks in ((BELOW, MARKS_BELOW), (ABOVE, MARKS_ABOVE)):
-        for table in font['GPOS'].table.LookupList.Lookup[lookup].SubTable:
-            mark_glyphs = table.MarkCoverage.glyphs
-            # How far each mark reaches from its anchor, down and up, by class.
-            reach = {}
-            for mark in marks:
-                if mark in mark_glyphs:
-                    record = table.MarkArray.MarkRecord[mark_glyphs.index(mark)]
-                    _, y0, _, y1 = bounds(font, mark)
-                    down, up = reach.get(record.Class, (0, 0))
-                    anchor_y = record.MarkAnchor.YCoordinate
-                    reach[record.Class] = (min(down, y0 - anchor_y), max(up, y1 - anchor_y))
-            for base, record in zip(table.BaseCoverage.glyphs, table.BaseArray.BaseRecord):
-                if base not in names:
-                    continue
-                for klass, (down, up) in reach.items():
-                    anchor = record.BaseAnchor[klass]
-                    if anchor is None:
-                        continue
-                    y = max(anchor.YCoordinate, LOW - down) if lookup == BELOW else min(anchor.YCoordinate, HIGH - up)
-                    if y != anchor.YCoordinate:
-                        anchor.YCoordinate = y
-                        moved_anchors += 1
-    return moved_anchors
+def ink(*values):
+    """Where outlines put ink, on a grid of GRID font units: a boolean array
+    indexed [row from TOP down, column from LEFT]."""
+    image = Image.new('1', ((RIGHT - LEFT) // GRID, (TOP - BOTTOM) // GRID), 0)
+    draw = ImageDraw.Draw(image)
+    for value in values:
+        pen = Polygons()
+        for operator, points in value:
+            getattr(pen, operator)(*points)
+        for polygon in pen.polygons:
+            if len(polygon) > 2:
+                draw.polygon([((x - LEFT) / GRID, (TOP - y) / GRID) for x, y in polygon], fill=1)
+    return numpy.array(image, dtype=bool)
+
+
+def is_dot(contour):
+    pen = BoundsPen(None)
+    for operator, points in contour:
+        getattr(pen, operator)(*points)
+    x0, y0, x1, y1 = pen.bounds
+    return x1 - x0 <= 140 and y1 - y0 <= 140 and y1 < 0, y0, y1
+
+
+def place_below(font, names):
+    """Puts the kasra and kasratan under each letter inside the row, clear of the
+    letter: as near the font's own place as it can, moving dots under the letter
+    up when that makes room (ب), and to the side only when nothing else fits.
+    Dots out of the row (final ي) come up into it, clear of the letter. Returns
+    the letters changed."""
+    table = font['GPOS'].table.LookupList.Lookup[BELOW].SubTable[0]
+    marks = table.MarkCoverage.glyphs
+    records = [table.MarkArray.MarkRecord[marks.index(mark)] for mark in MARKS_BELOW]
+    klass = records[0].Class
+    # The marks drawn as one shape, with their anchor at (0, 0).
+    shapes = [mapped(outline(font, mark), fx=lambda x, r=r: x - r.MarkAnchor.XCoordinate,
+                     fy=lambda y, r=r: y - r.MarkAnchor.YCoordinate) for mark, r in zip(MARKS_BELOW, records)]
+    mark_bottom = min(bounds(font, mark)[1] - r.MarkAnchor.YCoordinate for mark, r in zip(MARKS_BELOW, records))
+    mark_top = max(bounds(font, mark)[3] - r.MarkAnchor.YCoordinate for mark, r in zip(MARKS_BELOW, records))
+    originals = {name: outline(font, name) for name in names}
+
+    def clear(shape, letter):
+        """No ink of the shape within MARGIN of the letter's."""
+        grown = shape.copy()
+        for dy in range(-MARGIN, MARGIN + 1):
+            for dx in range(-MARGIN, MARGIN + 1):
+                grown |= numpy.roll(numpy.roll(shape, dy, 0), dx, 1)
+        return not (grown & letter).any()
+
+    def mark_fits(letter, x, y):
+        if y + mark_bottom < LOW or y + mark_top > -GAP:
+            return False
+        return clear(ink(*[mapped(value, fx=lambda v: v + x, fy=lambda v: v + y) for value in shapes]), letter)
+
+    def first_place(letter, x, y):
+        """The place in the row nearest y that fits, else None."""
+        places = sorted(range(round(LOW - mark_bottom), round(-GAP - mark_top) + 1, STEP_UP), key=lambda place: abs(place - y))
+        return next((place for place in places if mark_fits(letter, x, place)), None)
+
+    changed = []
+    for base, record in zip(table.BaseCoverage.glyphs, table.BaseArray.BaseRecord):
+        anchor = record.BaseAnchor[klass] if base in names else None
+        if anchor is None:
+            continue
+        parts = contours(originals[base])
+        dots = [i for i, part in enumerate(parts) if is_dot(part)[0]]
+        body = ink(*[part for i, part in enumerate(parts) if i not in dots])
+        lowest = min([0] + [is_dot(parts[i])[1] for i in dots])
+        highest = max([LOW] + [is_dot(parts[i])[2] for i in dots])
+
+        # Each way the dots may sit: from where the row needs them, up while
+        # they stay clear of the letter.
+        lifts = []
+        for lift in range(max(0, round(LOW - lowest)), max(0, round(-highest)) + 1, STEP_UP):
+            moved = [mapped(parts[i], fy=lambda v: v + lift) for i in dots]
+            if lift == 0 or clear(ink(*moved), body):
+                lifts.append((lift, ink(*moved) | body))
+        if not lifts:
+            lifts = [(max(0, round(LOW - lowest)), body)]
+
+        x, y = anchor.XCoordinate, anchor.YCoordinate
+        found = None
+        for shift in (0, SIDE, -SIDE):
+            for lift, letter in lifts:
+                place = first_place(letter, x + shift, y)
+                if place is not None:
+                    found = (lift, x + shift, place)
+                    break
+            if found:
+                break
+        if found is None:
+            # No room clear of the letter: the row's bottom edge, so it shows.
+            found = (lifts[0][0], x, max(y, LOW - mark_bottom))
+        lift, new_x, new_y = found
+        if lift:
+            save(font, base, [op for i, part in enumerate(parts)
+                              for op in (mapped(part, fy=lambda v: v + lift) if i in dots else part)])
+        if lift or (new_x, new_y) != (x, y):
+            anchor.XCoordinate, anchor.YCoordinate = round(new_x), round(new_y)
+            changed.append(base)
+    return changed
 
 
 def forms(font, lookup):
@@ -252,14 +354,17 @@ def join(font):
     # A letter's left side joins the next letter (initial and medial forms), its
     # right side the previous one (medial and final forms).
     fina, medi, init = forms(font, FINA), forms(font, MEDI), forms(font, INIT)
-    for name in sorted(fina | medi | init | {tatweel}):
+    # Outlines before any change: a glyph drawn from another must not take its strokes.
+    names = sorted(fina | medi | init | {tatweel})
+    originals = {name: outline(font, name) for name in names}
+    for name in names:
         advance = font['hmtx'][name][0]
         bars = []
         if name in init | medi or name == tatweel:
             bars.append((-REACH, bottom, 20, top))
         if name in fina | medi or name == tatweel:
             bars.append((advance - 20, bottom, advance + REACH, top))
-        save(font, name, outline(font, name), bars=bars)
+        save(font, name, originals[name], bars=bars)
     return len(fina | medi | init) + 1
 
 
@@ -279,14 +384,14 @@ def main():
     cache.mkdir(parents=True, exist_ok=True)
 
     font = TTFont(source(cache))
+    flatten_kasra(font)
     tanween(font)
     unligate_tanween(font)
-    lift(font, letters(font) | arabic_marks(font))
-    clamped = clamp(font, letters(font))
+    placed = place_below(font, letters(font))
     joined = join(font)
     rename(font)
     font.save(OUT)
-    print(f'wrote {OUT.relative_to(ROOT)}: {clamped} mark places moved into the row, {joined} glyphs joined')
+    print(f'wrote {OUT.relative_to(ROOT)}: marks or dots moved into the row on {len(placed)} letters, {joined} glyphs joined')
 
 
 if __name__ == '__main__':
