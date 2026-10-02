@@ -23,7 +23,7 @@ Keys inside the pane:
 | `b` | Go to the bookmark |
 | `d` | Day / night page |
 | `t` | Tashkeel on / off |
-| `g` | Letter gaps on / off: a cell after letters that do not join the next one (أَ حْمِلُكُمْ), and 2 between words |
+| `g` | Letter gaps on / off (off at first): a cell after letters that do not join the next one (أَ حْمِلُكُمْ), and 2 between words |
 | `Esc` | Close |
 
 Your page, the highlighted ayah, the bookmark and the day/night choice are kept between sessions.
@@ -41,6 +41,6 @@ A terminal still puts every letter in a fixed-width cell, so the page reads like
 
 ## Credits
 
-- Mushaf text and line layout: [Quran.com API](https://api.quran.com) (Quran Foundation), Madinah Mushaf, 15-line layout.
+- Mushaf text and line layout: [Quran.com API](https://api.quran.com) (Quran Foundation), Madinah Mushaf, 15-line layout. The text is the King Fahd Complex (KFGQPC) Hafs text, with its Mushaf-specific marks mapped to the standard ones a monospace font draws: open tanween to tanween, the Mushaf sukun to sukun, and the small iqlab meem left out.
 - Surah names: [AlQuran Cloud](https://alquran.cloud) (Tanzil Uthmani text).
 - Font: [Kawkab Mono](https://github.com/aiaf/kawkab-mono) by Abdullah Arif, SIL Open Font License 1.1 (`fonts/OFL.txt`).

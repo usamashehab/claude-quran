@@ -9,11 +9,12 @@ export type Tone = 'text' | 'marker' | 'symbol'
 export type Piece = { text: string; ayah: number | null; tone: Tone }
 export type Token = { text: string; ayah: number; tone: Tone }
 
-// Terminal cells a string takes: combining marks (tashkeel) take none.
+// Terminal cells a string takes: combining marks (tashkeel) and format
+// characters (direction marks, joiners) take none.
 export const cells = (text: string) => {
   let count = 0
   for (const char of text) {
-    if (!/[\p{M}‌‍]/u.test(char)) {
+    if (!/[\p{M}\p{Cf}]/u.test(char)) {
       count++
     }
   }
@@ -21,12 +22,31 @@ export const cells = (text: string) => {
   return count
 }
 
+// Signs and brackets have no direction of their own, so at the edge of a line a
+// terminal moves them to the wrong side, and Claude Code drops direction marks.
+// A tatweel, an Arabic letter, beside a sign there pins it; the sign's piece draws
+// it in the background colour, so it is not seen.
+export const GUARD = '\u0640'
+
+function guard(line: Token[]): Token[] {
+  return line.map((token, at) => {
+    if (token.tone === 'text') {
+      return token
+    }
+    const before = at === 0 ? GUARD : ''
+    const after = at === line.length - 1 ? GUARD : ''
+
+    return { ...token, text: before + token.text + after }
+  })
+}
+
 function fill(tokens: Token[], width: number, space: number): Token[][] {
   const lines: Token[][] = []
   let line: Token[] = []
   let used = 0
   for (const token of tokens) {
-    const size = cells(token.text)
+    // A sign may land at the edge of the line and take a guard.
+    const size = cells(token.text) + (token.tone === 'text' ? 0 : 1)
     if (line.length > 0 && used + space + size > width) {
       lines.push(line)
       line = []
@@ -143,7 +163,8 @@ export function justify(words: Token[], width: number, isCentred: boolean, space
   const gaps = words.length - 1
   // A line of one word cannot stretch.
   const centre = isCentred || gaps === 0
-  const line = centre ? words : stretch(words, width - widthOf(words) - gaps * space)
+  const guarded = guard(words)
+  const line = centre ? guarded : stretch(guarded, width - widthOf(guarded) - gaps * space)
   const used = widthOf(line)
   const free = Math.max(0, width - used - gaps * space)
   const pieces: Piece[] = []
@@ -169,7 +190,7 @@ export function justify(words: Token[], width: number, isCentred: boolean, space
 }
 
 // The cells a line takes with `space` cells between its tokens.
-export const naturalWidth = (line: Token[], space = 1) => widthOf(line) + Math.max(0, line.length - 1) * space
+export const naturalWidth = (line: Token[], space = 1) => widthOf(guard(line)) + Math.max(0, line.length - 1) * space
 
 // Reflows tokens into lines of `width`: each justified, the last centred.
 export function layout(tokens: Token[], width: number, space = 1): Piece[][] {

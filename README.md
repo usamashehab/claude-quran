@@ -25,6 +25,8 @@ claude --plugin-dir ./plugins/quran
 
 Check it with `claude plugin validate ./plugins/quran` and `claude plugin test ./plugins/quran`.
 
+Rebuild the page data (`plugins/quran/data/quran.json`) from the Quran.com and AlQuran Cloud APIs with `python3 scripts/build_data.py`; downloads are kept in `.cache/`.
+
 ## License
 
 The code is MIT licensed (see [LICENSE](LICENSE)). The bundled Kawkab Mono font is under the SIL Open Font License 1.1 (`plugins/quran/fonts/OFL.txt`), and the Quran text and page layout come from the sources credited in [plugins/quran/README.md](plugins/quran/README.md).

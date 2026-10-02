@@ -3,7 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Bookmark, Theme } from '../types'
 import { CONF_NAME, FONT_FILES, FONTCONFIG, OTHER_SYSTEMS } from './font'
-import { cells, justify, layout, naturalWidth, spaceOut } from './layout'
+import { cells, GUARD, justify, layout, naturalWidth, spaceOut } from './layout'
 import type { Piece, Token } from './layout'
 
 const PANE = 'quran'
@@ -16,7 +16,7 @@ const page = atom({ plugin: 'quran', key: 'page' } as const, 1)
 const cursor = atom({ plugin: 'quran', key: 'cursor' } as const, 0)
 const bookmark = atom({ plugin: 'quran', key: 'bookmark' } as const, null)
 const isPlain = atom({ plugin: 'quran', key: 'isPlain' } as const, false)
-const isSpaced = atom({ plugin: 'quran', key: 'isSpaced' } as const, true)
+const isSpaced = atom({ plugin: 'quran', key: 'isSpaced' } as const, false)
 const theme = atom({ plugin: 'quran', key: 'theme' } as const, 'day')
 
 const PALETTES = {
@@ -287,11 +287,15 @@ function tokensOf(
     const index = indexOf(surah, ayah)
     for (const word of show(words).split(/\s+/).filter(Boolean)) {
       const isSymbol = /^[۞۩]$/.test(word)
-      tokens.push({ text: isSpacedOut && !isSymbol ? spaceOut(word) : word, ayah: index, tone: isSymbol ? 'symbol' : 'text' })
+      tokens.push({
+        text: isSymbol || !isSpacedOut ? word : spaceOut(word),
+        ayah: index,
+        tone: isSymbol ? 'symbol' : 'text',
+      })
     }
     if (ends) {
       // U+FD3F then U+FD3E: a bidi terminal draws them as ﴾n﴿ around the number.
-      tokens.push({ text: `﴿${toArabicDigits(ayah)}﴾`, ayah: index, tone: 'marker' })
+      tokens.push({ text: `\uFD3F${toArabicDigits(ayah)}\uFD3E`, ayah: index, tone: 'marker' })
     }
   }
 
@@ -388,15 +392,24 @@ export const register: Register = on => {
 
       return colors.page
     }
-    const piece = ({ text, ayah, tone }: Piece) => (
-      <Text
-        color={tone === 'text' ? colors.text : colors.gold}
-        backgroundColor={background(ayah)}
-        bold={tone === 'marker' && ayah === markIndex}
-      >
-        {text}
-      </Text>
-    )
+    const piece = ({ text, ayah, tone }: Piece) => {
+      const color = tone === 'text' ? colors.text : colors.gold
+      const style = { backgroundColor: background(ayah), bold: tone === 'marker' && ayah === markIndex }
+      if (tone === 'text') {
+        return (
+          <Text color={color} {...style}>
+            {text}
+          </Text>
+        )
+      }
+
+      // A sign's guards take the background colour; see GUARD.
+      return text.split(/(\u0640)/).filter(Boolean).map(part => (
+        <Text color={part === GUARD ? style.backgroundColor : color} {...style}>
+          {part}
+        </Text>
+      ))
+    }
     const plainLine = (text: string, color: string = colors.text) => (
       <Text color={color} backgroundColor={colors.page}>
         {centred(text, width)}
