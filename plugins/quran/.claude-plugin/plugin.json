@@ -6,5 +6,7 @@
   "author": {
     "name": "Usama Shehab",
     "email": "usama.shehab173@gmail.com"
-  }
+  },
+  "license": "MIT",
+  "repository": "https://github.com/usamashehab/claude-quran"
 }
