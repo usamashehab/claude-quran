@@ -1,10 +1,11 @@
-// `/quran font`: makes terminals draw Arabic in Amiri Quran, a Uthmani-style
-// font, while Latin text keeps the terminal's own font. Linux is set up here;
+// `/quran font`: makes terminals draw Arabic in Kawkab Mono, a monospace font
+// whose letters join across terminal cells, while Latin text keeps the
+// terminal's own font. Linux is set up here;
 // other systems get the steps, since their terminals pick fonts themselves.
 // The steps that run commands live in register.tsx, beside `$`.
 
 export const CONF_NAME = '60-quran-arabic.conf'
-export const FONT_FILE = 'AmiriQuran.ttf'
+export const FONT_FILES = ['KawkabMono-Regular.ttf', 'KawkabMono-Bold.ttf']
 
 const ARABIC_RANGES = [
   [0x0600, 0x06ff],
@@ -16,7 +17,7 @@ const ARABIC_RANGES = [
 
 const hex = (n: number) => `0x${n.toString(16).toUpperCase().padStart(4, '0')}`
 
-// Monospace fonts give up their Arabic glyphs, and Amiri Quran is the first
+// Monospace fonts give up their Arabic glyphs, and Kawkab Mono is the first
 // font they fall back to, so only Arabic changes.
 export const FONTCONFIG = `<?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
@@ -35,17 +36,17 @@ ${ARABIC_RANGES.map(([from, to]) => `          <range><int>${hex(from ?? 0)}</in
   </match>
   <match target="pattern">
     <test name="family" compare="contains" ignore-blanks="true"><string>mono</string></test>
-    <edit name="family" mode="append_last" binding="weak"><string>Amiri Quran</string></edit>
+    <edit name="family" mode="append_last" binding="weak"><string>Kawkab Mono</string></edit>
   </match>
 </fontconfig>
 `
 
 export const OTHER_SYSTEMS = [
   'Arabic font setup for the quran mod:',
-  `1. Install Amiri Quran: the file is in this mod at fonts/${FONT_FILE} (or https://github.com/aliftype/amiri/releases).`,
+  '1. Install Kawkab Mono: the files are in this mod\'s fonts/ folder (or https://github.com/aiaf/kawkab-mono/releases).',
   '2. Point your terminal at it for non-Latin text:',
-  '   - iTerm2: Settings > Profiles > Text > "Use a different font for non-ASCII text" > Amiri Quran',
-  '   - WezTerm: font = wezterm.font_with_fallback({ "<your font>", "Amiri Quran" })',
-  '   - Windows Terminal: "font": { "face": "<your font>, Amiri Quran" }',
-  '   - Others: put Amiri Quran after your usual font in the font fallback list, if the terminal has one.',
+  '   - iTerm2: Settings > Profiles > Text > "Use a different font for non-ASCII text" > Kawkab Mono',
+  '   - WezTerm: font = wezterm.font_with_fallback({ "<your font>", "Kawkab Mono" })',
+  '   - Windows Terminal: "font": { "face": "<your font>, Kawkab Mono" }',
+  '   - Others: put Kawkab Mono after your usual font in the font fallback list, if the terminal has one.',
 ].join('\n')

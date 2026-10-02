@@ -27,4 +27,4 @@ Check it with `claude plugin validate ./plugins/quran` and `claude plugin test .
 
 ## License
 
-The code is MIT licensed (see [LICENSE](LICENSE)). The bundled Amiri Quran font is under the SIL Open Font License 1.1 (`plugins/quran/fonts/OFL.txt`), and the Quran text and page layout come from the sources credited in [plugins/quran/README.md](plugins/quran/README.md).
+The code is MIT licensed (see [LICENSE](LICENSE)). The bundled Kawkab Mono font is under the SIL Open Font License 1.1 (`plugins/quran/fonts/OFL.txt`), and the Quran text and page layout come from the sources credited in [plugins/quran/README.md](plugins/quran/README.md).

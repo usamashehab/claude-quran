@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { cells, layout } from '../hooks/layout'
+import { cells, kashida, layout } from '../hooks/layout'
 
 // A small stand-in for data/quran.json: the tests cannot read files.
 // Pages hold Mushaf lines; every page but the few the test visits holds one ayah of surah 114.
@@ -101,4 +101,10 @@ test('justified lines fill the column exactly; the last line is centred', () => 
   }
   const last = lines.at(-1)?.map(piece => piece.text).join('') ?? ''
   expect(last.length - last.trimStart().length).toBeGreaterThan(0)
+})
+
+test('kashida stretches a joint, never lam-alef or a non-joining letter', () => {
+  expect(kashida('قُلُوبِهِمْ')).toBe('قُلُوبِهِـمْ')
+  expect(kashida('لَا')).toBeUndefined()
+  expect(kashida('دَارُ')).toBeUndefined()
 })

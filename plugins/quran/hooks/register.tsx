@@ -2,14 +2,14 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Bookmark, Theme } from '../types'
-import { CONF_NAME, FONT_FILE, FONTCONFIG, OTHER_SYSTEMS } from './font'
-import { cells, justify, layout } from './layout'
+import { CONF_NAME, FONT_FILES, FONTCONFIG, OTHER_SYSTEMS } from './font'
+import { cells, justify, layout, naturalWidth } from './layout'
 import type { Piece, Token } from './layout'
 
 const PANE = 'quran'
 const PAGES = 604
-// The widest Mushaf line, in cells: at this width every page keeps its 15 lines.
-const MUSHAF_WIDTH = 72
+// Wide enough for the longest Mushaf line (81 cells) inside the frame.
+const PANE_COLUMNS = 88
 const BASMALA = 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ'
 
 const page = atom({ plugin: 'quran', key: 'page' } as const, 1)
@@ -240,13 +240,15 @@ async function fontOn($: EngineInterface): Promise<string> {
     return OTHER_SYSTEMS
   }
   const { conf, fonts } = await fontPaths($)
-  const installed = await runQuietly($, ['fc-list', 'Amiri Quran', 'family'])
+  const installed = await runQuietly($, ['fc-list', 'Kawkab Mono', 'family'])
   if (!installed) {
     return 'fontconfig was not found (fc-list). ' + OTHER_SYSTEMS
   }
   if (installed.stdout.trim() === '') {
     await runQuietly($, ['mkdir', '-p', fonts])
-    await runQuietly($, ['cp', `${$.plugin.root}/fonts/${FONT_FILE}`, `${fonts}/${FONT_FILE}`])
+    for (const file of FONT_FILES) {
+      await runQuietly($, ['cp', `${$.plugin.root}/fonts/${file}`, `${fonts}/${file}`])
+    }
   }
   await $.fs.write(conf, FONTCONFIG)
   await runQuietly($, ['fc-cache', '-f'])
@@ -258,12 +260,12 @@ async function fontOn($: EngineInterface): Promise<string> {
     ].join(' ')
   }
 
-  return `Arabic now uses Amiri Quran (${conf}). Restart your terminal to see it; /quran font off undoes it.`
+  return `Arabic now uses Kawkab Mono (${conf}). Restart your terminal to see it; /quran font off undoes it.`
 }
 
 async function fontOff($: EngineInterface): Promise<string> {
   if (!(await isLinux($))) {
-    return 'Nothing to undo here: remove Amiri Quran from your terminal font settings.'
+    return 'Nothing to undo here: remove Kawkab Mono from your terminal font settings.'
   }
   const { conf } = await fontPaths($)
   await runQuietly($, ['rm', '-f', conf])
@@ -321,7 +323,13 @@ export const register: Register = on => {
     if (args === 'font off') {
       return { text: await fontOff($) }
     }
-    const opened = await $.ui.open({ id: PANE, title: 'القرآن الكريم', focus: true, closeOnEscape: true })
+    const opened = await $.ui.open({
+      id: PANE,
+      title: 'القرآن الكريم',
+      focus: true,
+      closeOnEscape: true,
+      columns: PANE_COLUMNS,
+    })
     const problem = await jump($, args)
     if (problem) {
       return { text: problem }
@@ -350,10 +358,13 @@ export const register: Register = on => {
     const indexOf = (s: number, a: number) => ayahs.findIndex(one => one.surah === s && one.ayah === a)
     const markIndex = mark === null ? -1 : indexOf(mark.surah, mark.ayah)
 
-    // Wide enough, the page keeps the Mushaf's own lines; narrower, its text reflows.
+    // The page is as wide as its longest Mushaf line. Where the pane has room for
+    // that, the page keeps the Mushaf's own lines; narrower, its text reflows.
+    const lineTokens = new Map(sheet.l.filter(isWords).map(line => [line, tokensOf(line, indexOf, show)]))
+    const pageWidth = Math.max(30, ...[...lineTokens.values()].map(naturalWidth))
     const room = e.props.bodyColumns - 6
-    const isMushaf = room >= MUSHAF_WIDTH
-    const width = isMushaf ? MUSHAF_WIDTH : Math.max(10, room)
+    const isMushaf = room >= pageWidth
+    const width = isMushaf ? pageWidth : Math.max(10, room)
 
     const background = (ayah: number | null) => {
       if (ayah !== null && ayah === at) {
@@ -421,14 +432,13 @@ export const register: Register = on => {
     }
     for (const line of sheet.l) {
       if (isWords(line)) {
-        const tokens = tokensOf(line, indexOf, show)
+        const tokens = lineTokens.get(line) ?? []
         if (!isMushaf) {
           run.push(...tokens)
           continue
         }
         // Pages 1 and 2 are set centred in the Mushaf; a very short line would stretch too far.
-        const natural = tokens.reduce((sum, token) => sum + cells(token.text) + 1, 0)
-        addWords(justify(tokens, width, current <= 2 || natural < width * 0.4))
+        addWords(justify(tokens, width, current <= 2 || naturalWidth(tokens) < width * 0.4))
         continue
       }
       flush()
@@ -465,7 +475,13 @@ export const register: Register = on => {
           <Text color={colors.frame} backgroundColor={colors.page}>
             {'─'.repeat(width)}
           </Text>
-          {rows}
+          {rows.map((row, i) => (
+            // A blank row between lines keeps the tashkeel of one line clear of the next.
+            <Box key={`r${i}`} flexDirection="column">
+              {i > 0 && plainLine('')}
+              {row}
+            </Box>
+          ))}
           <Text color={colors.frame} backgroundColor={colors.page}>
             {'─'.repeat(width)}
           </Text>
