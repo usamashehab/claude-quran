@@ -21,8 +21,10 @@ Then run `/quran`. For better Arabic in the terminal, run `/quran font` once and
 | `/quran b` | Opens your bookmarked ayah |
 | `/quran font` | Sets up the terminal's Arabic font (Linux; prints the steps elsewhere) |
 | `/quran font off` | Removes that font setup |
+| `/quran spacing` | Makes GNOME Terminal's rows 1.2 times as tall, for more room between lines (prints the setting for kitty and WezTerm) |
+| `/quran spacing off` | Puts the row height back |
 
-Inside the pane: `n`/`p` page, `j`/`k` ayah, `m` bookmark, `b` go to bookmark, `t` tashkeel, `d` day/night, `g` letter gaps, `Esc` close.
+Inside the pane: `n`/`p` page, `j`/`k` ayah, `m` bookmark, `b` go to bookmark, `t` tashkeel, `d` day/night, `g` letter gaps, `l`/`s` larger/smaller text, `Esc` close. Click the page once and `←`/`→` turn it too.
 
 See [plugins/quran/README.md](plugins/quran/README.md) for what each does, what the font setup changes, and the credits.
 

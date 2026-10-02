@@ -58,10 +58,12 @@ test('pages turn, the cursor walks ayahs, and a bookmark is kept', async ($, on)
   for (const surface of ['terminal', 'desktop'] as const) {
     saved.clear()
     const ui = await $.ui.mount({ plugin: 'quran', surface, ...PANE })
+    // The terminal draws the page in its page Client.
+    const scope = surface === 'terminal' ? { in: 'page' } : {}
 
     const goToPage = (ui: { input: (a: { key: string; text: string }) => Promise<unknown> }, text: string) =>
       ui.input({ key: 'goto', text })
-    const pageNumber = async () => (await ui.find({ type: 'Text', text: /❁/ }))?.text.replace(/[\s❁]/g, '')
+    const pageNumber = async () => (await ui.find({ type: 'Text', text: /❁/, ...scope }))?.text.replace(/[\s❁]/g, '')
 
     expect(await pageNumber()).toBe('١')
 
@@ -78,7 +80,7 @@ test('pages turn, the cursor walks ayahs, and a bookmark is kept', async ($, on)
     await ui.input({ key: 'goto', text: '2:255' })
     expect(await pageNumber()).toBe('٤٢')
     // A hizb quarter starts on page 42 of the fixture; none on page 2.
-    expect((await ui.find({ type: 'Text', text: /الحزب/ }))?.text).toContain('ربع الحزب ٥')
+    expect((await ui.find({ type: 'Text', text: /الحزب/, ...scope }))?.text).toContain('ربع الحزب ٥')
 
     await ui.press({ key: 'bookmark' })
     expect(saved.get('position')).toEqual({ page: 2, cursor: 1 })
@@ -150,7 +152,8 @@ test('a phone-width terminal gives the surah and the juz a line each', async ($,
   world(on)
   const ui = await $.ui.mount({ plugin: 'quran', surface: 'terminal', ...PANE, props: { ...PANE.props, bodyColumns: 20 } })
 
-  const juz = await ui.find({ type: 'Text', text: /^\s*الجزء/ })
+  const juz = await ui.find({ type: 'Text', text: /^\s*الجزء/, in: 'page' })
+  expect(juz).toBeDefined()
   expect(juz?.text).not.toContain('سورة')
   await ui.unmount()
 })
@@ -173,4 +176,62 @@ test('a short terminal pane keeps the whole page in view: no Go to field, short 
   expect(await ui.find({ type: 'Input' })).toBeUndefined()
   expect(await ui.find({ type: 'Button', text: 'page' })).toBeDefined()
   await ui.unmount()
+})
+
+test('on the clicked terminal page the arrows turn pages leftward, as a Mushaf does', async ($, on) => {
+  world(on)
+  const ui = await $.ui.mount({ plugin: 'quran', surface: 'terminal', ...PANE })
+  const pageNumber = async () => (await ui.find({ type: 'Text', text: /❁/, in: 'page' }))?.text.replace(/[\s❁]/g, '')
+
+  await ui.key({ key: 'left', in: 'page' })
+  expect(await pageNumber()).toBe('٢')
+  await ui.key({ key: 'right', in: 'page' })
+  expect(await pageNumber()).toBe('١')
+  // The buttons' hotkeys reach the page too.
+  await ui.key({ key: 'n', in: 'page' })
+  expect(await pageNumber()).toBe('٢')
+  await ui.unmount()
+})
+
+test('text size outside GNOME Terminal points to the terminal zoom keys', async ($, on) => {
+  world(on)
+  on('env.get', () => ({ value: undefined }))
+  const toasts: string[] = []
+  on('ui.toast', (_$, e) => {
+    toasts.push(e.text)
+
+    return { value: undefined }
+  })
+  const ui = await $.ui.mount({ plugin: 'quran', surface: 'terminal', ...PANE })
+
+  await ui.press({ key: 'larger' })
+  await ui.key({ key: '-', in: 'page' })
+  expect(toasts).toEqual(["Text size is the terminal's: press ctrl and +", "Text size is the terminal's: press ctrl and -"])
+  await ui.unmount()
+})
+
+test('/quran spacing sets GNOME Terminal rows to 1.2 and spacing off puts back the height before', async ($, on) => {
+  world(on)
+  const quran = (args: string) =>
+    $.command.run({ command: 'quran', args, origin: { kind: 'composer' }, presentation: { isFullscreen: false, columns: 120 } })
+  const PROFILE = 'org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:abc/'
+  let height = '1.1'
+  const sets: string[] = []
+  on('env.get', (_$, e) => ({ value: e.name === 'GNOME_TERMINAL_SCREEN' ? '/org/gnome/Terminal/screen/1' : undefined }))
+  on('process.run', (_$, e) => {
+    const [, verb, schema, , value] = e.argv
+    if (verb === 'set' && schema === PROFILE && value !== undefined) {
+      sets.push(value)
+      height = value
+    }
+    const stdout = verb === 'get' ? (schema === PROFILE ? height : "'abc'") : ''
+
+    return { value: { exitCode: 0, stdout: `${stdout}\n`, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+  })
+
+  expect((await quran('spacing')).text).toContain('1.2 times as tall')
+  // Again: the height kept is still the one before the first.
+  await quran('spacing')
+  expect((await quran('spacing off')).text).toContain('back to 1.1')
+  expect(sets).toEqual(['1.2', '1.2', '1.1'])
 })

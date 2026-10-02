@@ -4,7 +4,8 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { Bookmark, Theme } from '../types'
 import { CONF_NAME, FAMILIES, FONT_FILES, FONTCONFIG, OTHER_SYSTEMS } from './font'
 import { cells, fitHeight, GUARD, inline, justify, layout, naturalWidth, spaceOut } from './layout'
-import type { Piece, Token } from './layout'
+import type { PageRows, Piece, Span, Token } from './layout'
+import { GNOME_PROFILES, GNOME_TERMINAL, gnomeProfile, LINE_HEIGHT, OTHER_TERMINALS_SPACING } from './terminal'
 
 const PANE = 'quran'
 const PAGES = 604
@@ -288,6 +289,124 @@ async function fontOff($: EngineInterface): Promise<string> {
   return `Removed ${conf}. Restart your terminal to go back to its own Arabic font.`
 }
 
+// The terminal's own text size, as ctrl and + or - sets it. GNOME Terminal zooms
+// a window over D-Bus; with several open there is no telling which is this one.
+async function zoom($: EngineInterface, way: 'in' | 'out') {
+  if (await $.env.get('GNOME_TERMINAL_SCREEN')) {
+    const bus = ['gdbus', '--session', '--dest', GNOME_TERMINAL]
+    const tree = await runQuietly($, ['gdbus', 'introspect', ...bus.slice(1), '--object-path', '/org/gnome/Terminal/window'])
+    const windows = [...(tree?.stdout ?? '').matchAll(/node (\d+) \{/g)].map(match => match[1])
+    if (windows.length === 1) {
+      const path = `/org/gnome/Terminal/window/${windows[0]}`
+      const done = await runQuietly($, ['gdbus', 'call', ...bus.slice(1), '--object-path', path, '--method', 'org.gtk.Actions.Activate', `zoom-${way}`, '[]', '{}'])
+      if (done?.exitCode === 0) {
+        return
+      }
+    }
+  }
+  $.ui.toast(`Text size is the terminal's: press ctrl and ${way === 'in' ? '+' : '-'}`)
+}
+
+// `/quran spacing` and `/quran spacing off`: GNOME Terminal's row height, for its
+// default profile. The height it had before is kept, to put back.
+async function terminalProfile($: EngineInterface) {
+  if (!(await $.env.get('GNOME_TERMINAL_SCREEN'))) {
+    return undefined
+  }
+  const listed = await runQuietly($, ['gsettings', 'get', GNOME_PROFILES, 'default'])
+  const id = listed?.exitCode === 0 ? listed.stdout.trim().replace(/'/g, '') : ''
+
+  return id === '' ? undefined : gnomeProfile(id)
+}
+
+async function spacingOn($: EngineInterface): Promise<string> {
+  const profile = await terminalProfile($)
+  if (!profile) {
+    return OTHER_TERMINALS_SPACING
+  }
+  const before = await runQuietly($, ['gsettings', 'get', profile, 'cell-height-scale'])
+  if (before?.exitCode !== 0) {
+    return `Could not read GNOME Terminal's row height (gsettings). ${OTHER_TERMINALS_SPACING}`
+  }
+  if ((await $.store.get('lineHeight')) === undefined) {
+    await $.store.set('lineHeight', Number(before.stdout.trim()) || 1)
+  }
+  await runQuietly($, ['gsettings', 'set', profile, 'cell-height-scale', String(LINE_HEIGHT)])
+
+  return `GNOME Terminal's rows are now ${LINE_HEIGHT} times as tall, in every window of its default profile; /quran spacing off puts them back.`
+}
+
+async function spacingOff($: EngineInterface): Promise<string> {
+  const profile = await terminalProfile($)
+  if (!profile) {
+    return 'Nothing to undo here: /quran spacing changes GNOME Terminal only.'
+  }
+  const before = Number(await $.store.get('lineHeight')) || 1
+  await runQuietly($, ['gsettings', 'set', profile, 'cell-height-scale', String(before)])
+  await $.store.delete('lineHeight')
+
+  return `GNOME Terminal's row height is back to ${before}.`
+}
+
+// The page's buttons, by the key a press names; `isCells`, the terminal's only.
+const CONTROLS = [
+  { key: 'next', hotkey: 'n', label: 'Next page', short: 'page', isCells: false },
+  { key: 'prev', hotkey: 'p', label: 'Prev page', short: 'back', isCells: false },
+  { key: 'down', hotkey: 'j', label: 'Next ayah', short: 'ayah', isCells: false },
+  { key: 'up', hotkey: 'k', label: 'Prev ayah', short: 'up', isCells: false },
+  { key: 'mark', hotkey: 'm', label: 'Bookmark', short: 'mark', isCells: false },
+  { key: 'bookmark', hotkey: 'b', label: 'Go to bookmark', short: 'go', isCells: false },
+  { key: 'plain', hotkey: 't', label: 'Tashkeel', short: 'tashkeel', isCells: false },
+  { key: 'theme', hotkey: 'd', label: 'Day/Night', short: 'night', isCells: false },
+  { key: 'spacing', hotkey: 'g', label: 'Letter gaps', short: 'gaps', isCells: true },
+  { key: 'larger', hotkey: 'l', label: 'Larger text', short: 'A+', isCells: true },
+  { key: 'smaller', hotkey: 's', label: 'Smaller text', short: 'A-', isCells: true },
+]
+
+// Keys the clicked page (page.tsx) hands on: the buttons' hotkeys, and the arrows,
+// which turn pages the way a Mushaf does, leftward: left is the next page.
+const PAGE_KEYS: Record<string, string> = {
+  ...Object.fromEntries(CONTROLS.map(control => [control.hotkey, control.key])),
+  left: 'next',
+  right: 'prev',
+  pagedown: 'next',
+  pageup: 'prev',
+  down: 'down',
+  up: 'up',
+  '+': 'larger',
+  '=': 'larger',
+  '-': 'smaller',
+}
+
+async function act($: EngineInterface, key: string) {
+  switch (key) {
+    case 'next':
+      return goTo($, (await read($, page)) + 1)
+    case 'prev':
+      return goTo($, (await read($, page)) - 1)
+    case 'down':
+      return moveCursor($, 1)
+    case 'up':
+      return moveCursor($, -1)
+    case 'mark':
+      return markCursor($)
+    case 'bookmark':
+      return goToBookmark($)
+    case 'plain':
+      return update($, isPlain, (value: boolean) => !value)
+    case 'theme':
+      return toggleTheme($)
+    case 'spacing':
+      return update($, isSpaced, (value: boolean) => !value)
+    case 'larger':
+      return zoom($, 'in')
+    case 'smaller':
+      return zoom($, 'out')
+  }
+
+  return undefined
+}
+
 // A line's words as tokens, each knowing its ayah's place on the page.
 function tokensOf(
   line: Segment[],
@@ -319,8 +438,8 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'quran',
-      description: 'Open the Quran: /quran [page | surah:ayah | b | font | font off]',
-      argumentHint: '[page | surah:ayah | b | font | font off]',
+      description: 'Open the Quran: /quran [page | surah:ayah | b | font | font off | spacing | spacing off]',
+      argumentHint: '[page | surah:ayah | b | font | font off | spacing | spacing off]',
     })
     // A session opens at the page where the last stopped, no ayah highlighted:
     // the bookmark is what keeps an ayah.
@@ -348,6 +467,12 @@ export const register: Register = on => {
     if (args === 'font off') {
       return { text: await fontOff($) }
     }
+    if (args === 'spacing') {
+      return { text: await spacingOn($) }
+    }
+    if (args === 'spacing off') {
+      return { text: await spacingOff($) }
+    }
     // Opened as it is, the page shows no ayah highlighted.
     if (args === '') {
       await update($, cursor, () => NONE)
@@ -368,7 +493,16 @@ export const register: Register = on => {
     }
     const current = await read($, page)
 
-    return { text: `Quran opened at page ${current}.` }
+    return { text: `Quran opened at page ${current}. In a terminal, click the page once, then ← and → turn it.` }
+  })
+
+  on('ui.message', { requestId: PANE }, async ($, e) => {
+    const action = typeof e.data === 'string' ? PAGE_KEYS[e.data] : undefined
+    if (action) {
+      await act($, action)
+    }
+
+    return {}
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
@@ -376,6 +510,7 @@ export const register: Register = on => {
     const { Box, Button, Text } = elements
     // Mobile has no Input; the buttons still work there.
     const Input = 'Input' in elements ? elements.Input : undefined
+    const Client = 'Client' in elements ? elements.Client : undefined
     const q = await load($)
     const current = await read($, page)
     const at = await read($, cursor)
@@ -394,9 +529,11 @@ export const register: Register = on => {
     const markIndex = mark === null ? -1 : indexOf(mark.surah, mark.ayah)
 
     // The terminal sets text in cells, so the page pads, stretches and guards its
-    // lines itself; the apps (desktop, mobile, VS Code) set it in their own fonts,
-    // which join letters and order right-to-left text, so they get plain runs.
-    const isCells = e.surface === 'terminal'
+    // lines itself, and draws them in the page Client (page.tsx), which takes the
+    // arrows once clicked; the apps (desktop, mobile, VS Code) set the text in
+    // their own fonts, which join letters and order right-to-left text, so they
+    // get plain runs.
+    const isCells = e.surface === 'terminal' && Client !== undefined
     const lettersApart = isCells && spaced
     // A phone-width pane keeps less padding inside the frame.
     const padding = e.props.bodyColumns < 56 ? 1 : 2
@@ -421,98 +558,17 @@ export const register: Register = on => {
 
       return colors.page
     }
-    const piece = ({ text, ayah, tone }: Piece) => {
-      const color = tone === 'text' ? colors.text : colors.gold
-      const style = { backgroundColor: background(ayah, tone), bold: tone === 'marker' && ayah === markIndex }
-      if (tone === 'text' || !isCells) {
-        return (
-          <Text color={color} {...style}>
-            {text}
-          </Text>
-        )
-      }
+    const isBold = ({ ayah, tone }: Piece) => tone === 'marker' && ayah === markIndex
 
-      // A sign's guards take the background colour; see GUARD.
-      return text.split(/(ـ)/).filter(Boolean).map(part => (
-        <Text color={part === GUARD ? style.backgroundColor : color} {...style}>
-          {part}
-        </Text>
-      ))
-    }
-    // A run of words: cells laid out by the page on the terminal, one text the
-    // app sets and wraps elsewhere.
-    const words = (pieces: Piece[]) =>
-      isCells ? (
-        pieces.map(piece)
-      ) : (
-        <Text color={colors.text} backgroundColor={colors.page}>
-          {pieces.map(piece)}
-        </Text>
-      )
-    const plainLine = (text: string, color: string = colors.text) =>
-      isCells ? (
-        <Text color={color} backgroundColor={colors.page}>
-          {centred(text, width)}
-        </Text>
-      ) : (
-        <Box justifyContent="center">
-          <Text color={color} backgroundColor={colors.page}>
-            {text}
-          </Text>
-        </Box>
-      )
-    const banner = (surah: number) => {
-      const name = ` ${spaceLine(`سُورَةُ ${show(surahOf(q, surah)[0])}`)} `
-      if (!isCells) {
-        return (
-          <Box justifyContent="center" backgroundColor={colors.banner}>
-            <Text color={colors.gold} backgroundColor={colors.banner}>
-              ۞ <Text color={colors.text} backgroundColor={colors.banner} bold>{name}</Text> ۞
-            </Text>
-          </Box>
-        )
-      }
-      const side = Math.max(1, Math.floor((width - cells(name) - 2) / 2))
-      const rest = Math.max(0, width - cells(name) - 2 - side * 2)
-
-      return (
-        <Box>
-          <Text color={colors.gold} backgroundColor={colors.banner}>
-            {'۞' + '─'.repeat(side)}
-          </Text>
-          <Text color={colors.text} backgroundColor={colors.banner} bold>
-            {name}
-          </Text>
-          <Text color={colors.gold} backgroundColor={colors.banner}>
-            {'─'.repeat(side + rest) + '۞'}
-          </Text>
-        </Box>
-      )
-    }
-
-    const rows: JSX.Element[] = []
-    const addWords = (pieces: Piece[]) => {
-      const n = rows.length
-      for (const { ayah } of pieces) {
-        if (ayah !== null && !lineOfAyah.has(ayah)) {
-          lineOfAyah.set(ayah, n)
-        }
-      }
-      rows.push(
-        <Box key={`l${n}`} justifyContent="center">
-          {words(pieces)}
-        </Box>,
-      )
-    }
-    const addRow = (row: JSX.Element) => rows.push(<Box key={`l${rows.length}`}>{row}</Box>)
-
-    lineOfAyah = new Map()
+    // The page's lines in reading order, then drawn for the surface.
+    type Row = { words: Piece[] } | { plain: string } | { banner: number }
+    const lines: Row[] = []
     let run: Token[] = []
     const flush = () => {
       if (run.length > 0) {
         // An app wraps the run itself, as a paragraph.
-        for (const pieces of isCells ? layout(run, width, space) : [inline(run)]) {
-          addWords(pieces)
+        for (const words of isCells ? layout(run, width, space) : [inline(run)]) {
+          lines.push({ words })
         }
       }
       run = []
@@ -526,16 +582,16 @@ export const register: Register = on => {
         }
         // Pages 1 and 2 are set centred in the Mushaf; a very short line would stretch too far.
         const isCentred = current <= 2 || naturalWidth(tokens, space) < width * 0.4
-        addWords(isCells ? justify(tokens, width, isCentred, space) : inline(tokens))
+        lines.push({ words: isCells ? justify(tokens, width, isCentred, space) : inline(tokens) })
         continue
       }
       flush()
       if (line === null) {
-        addRow(plainLine(''))
+        lines.push({ plain: '' })
       } else if ('h' in line) {
-        addRow(banner(line.h))
+        lines.push({ banner: line.h })
       } else {
-        addRow(plainLine(spaceLine(show(BASMALA))))
+        lines.push({ plain: spaceLine(show(BASMALA)) })
       }
     }
     flush()
@@ -544,107 +600,167 @@ export const register: Register = on => {
       .map(s => `سورة ${show(surahOf(q, s)[0])}`)
       .join(' · ')
     const where = `الجزء ${toArabicDigits(sheet.j)}`
+    const footer = `❁  ${toArabicDigits(current)}  ❁`
+    const surahName = (surah: number) => ` ${spaceLine(`سُورَةُ ${show(surahOf(q, surah)[0])}`)} `
     // Too narrow for both, the surah and the juz take a line each.
     const isHeaderOneLine = cells(surahNames) + cells(where) + 1 <= width
-    const header =
-      !isCells ? (
-        <Box justifyContent="space-between" flexDirection="row-reverse">
-          <Text color={colors.dim} backgroundColor={colors.page}>{surahNames}</Text>
-          <Text color={colors.dim} backgroundColor={colors.page}>{where}</Text>
-        </Box>
-      ) : isHeaderOneLine ? (
-        <Text color={colors.dim} backgroundColor={colors.page}>
-          {surahNames}
-          {' '.repeat(width - cells(surahNames) - cells(where))}
-          {where}
-        </Text>
-      ) : (
-        <Box flexDirection="column">
-          {plainLine(surahNames, colors.dim)}
-          {plainLine(where, colors.dim)}
-        </Box>
-      )
-    const rule = isCells ? (
-      <Text color={colors.frame} backgroundColor={colors.page}>
-        {'─'.repeat(width)}
-      </Text>
-    ) : (
-      plainLine('─'.repeat(24), colors.frame)
-    )
 
     // The page fits the pane's height, no scrolling: the blank rows between lines
     // go first, then the Go to field, then the buttons' long labels.
-    const controls = [
-      { key: 'next', hotkey: 'n', label: 'Next page', short: 'page', press: () => goTo($, current + 1) },
-      { key: 'prev', hotkey: 'p', label: 'Prev page', short: 'back', press: () => goTo($, current - 1) },
-      { key: 'down', hotkey: 'j', label: 'Next ayah', short: 'ayah', press: () => moveCursor($, 1) },
-      { key: 'up', hotkey: 'k', label: 'Prev ayah', short: 'up', press: () => moveCursor($, -1) },
-      { key: 'mark', hotkey: 'm', label: 'Bookmark', short: 'mark', press: () => markCursor($) },
-      { key: 'bookmark', hotkey: 'b', label: 'Go to bookmark', short: 'go', press: () => goToBookmark($) },
-      { key: 'plain', hotkey: 't', label: 'Tashkeel', short: 'tashkeel', press: () => update($, isPlain, (value: boolean) => !value) },
-      { key: 'theme', hotkey: 'd', label: 'Day/Night', short: 'night', press: () => toggleTheme($) },
-      { key: 'spacing', hotkey: 'g', label: 'Letter gaps', short: 'gaps', press: () => update($, isSpaced, (value: boolean) => !value) },
-    ]
+    const controls = CONTROLS.filter(control => isCells || !control.isCells)
     const fit = fitHeight({
       bodyRows: isCells ? e.props.scroll.bodyRows : Infinity,
       bodyColumns: e.props.bodyColumns,
-      rows: rows.length,
-      gaps: rows.length - 1,
+      rows: lines.length,
+      gaps: lines.length - 1,
       frame: 2 + (isHeaderOneLine ? 1 : 2) + 2 + 1 + (sheet.q ? 1 : 0),
       hasInput: Input !== undefined,
       labels: controls.map(control => [control.label, control.short]),
     })
 
+    const buttons = (
+      <Box flexWrap="wrap" columnGap={2} justifyContent="center" marginTop={fit.hasMargin ? 1 : 0}>
+        {controls.map(control => (
+          <Button
+            plain
+            key={control.key}
+            hotkey={control.hotkey}
+            label={fit.isShort ? control.short : control.label}
+            onPress={() => act($, control.key)}
+          />
+        ))}
+      </Box>
+    )
+    const goToField = Input && fit.hasInput && (
+      <Box width={width + 2 + padding * 2}>
+        <Input
+          key="goto"
+          placeholder="Go to: page, surah:ayah, or b"
+          submitLabel="Go"
+          onSubmit={async value => {
+            const problem = await jump($, value)
+            if (problem) {
+              $.ui.toast(problem)
+            }
+          }}
+        />
+      </Box>
+    )
+
+    if (isCells) {
+      // Each row as runs of cells, `width` wide.
+      const span = (text: string, color: string, backgroundColor: string = colors.page, bold = false): Span => [text, color, backgroundColor, bold]
+      const centredRow = (text: string, color: string = colors.text) => [span(centred(text, width), color)]
+      const pieceSpans = (one: Piece): Span[] => {
+        const color = one.tone === 'text' ? colors.text : colors.gold
+        const shade = background(one.ayah, one.tone)
+        // A sign's guards take the background colour; see GUARD.
+        const parts = one.tone === 'text' ? [one.text] : one.text.split(/(ـ)/).filter(Boolean)
+
+        return parts.map(part => span(part, part === GUARD ? shade : color, shade, isBold(one)))
+      }
+      const bannerRow = (surah: number) => {
+        const name = surahName(surah)
+        const side = Math.max(1, Math.floor((width - cells(name) - 2) / 2))
+        const rest = Math.max(0, width - cells(name) - 2 - side * 2)
+
+        return [
+          span('۞' + '─'.repeat(side), colors.gold, colors.banner),
+          span(name, colors.text, colors.banner, true),
+          span('─'.repeat(side + rest) + '۞', colors.gold, colors.banner),
+        ]
+      }
+      const rule = [span('─'.repeat(width), colors.frame)]
+      // On the terminal a blank row between lines keeps the tashkeel of one line
+      // clear of the next; an app's line height does that itself.
+      const body = lines.flatMap((line, i) => {
+        const row = 'words' in line ? line.words.flatMap(pieceSpans) : 'banner' in line ? bannerRow(line.banner) : centredRow(line.plain)
+
+        return i > 0 && fit.isSpaced ? [centredRow(''), row] : [row]
+      })
+      const rows: PageRows = [
+        ...(isHeaderOneLine
+          ? [[span(surahNames + ' '.repeat(width - cells(surahNames) - cells(where)) + where, colors.dim)]]
+          : [centredRow(surahNames, colors.dim), centredRow(where, colors.dim)]),
+        rule,
+        ...body,
+        rule,
+        centredRow(footer, colors.gold),
+        // On a line of its own: beside the ornaments, the terminal would reorder them.
+        ...(sheet.q ? [centredRow(quarterOf(sheet.q), colors.dim)] : []),
+      ]
+      lineOfAyah = new Map()
+
+      return (
+        <Box flexDirection="column" alignItems="center">
+          <Box borderStyle="double" borderColor={colors.frame} backgroundColor={colors.page} paddingX={padding}>
+            <Client key="page" module="./page.tsx" props={rows} />
+          </Box>
+          {buttons}
+          {goToField}
+        </Box>
+      )
+    }
+
+    const piece = (one: Piece) => (
+      <Text color={one.tone === 'text' ? colors.text : colors.gold} backgroundColor={background(one.ayah, one.tone)} bold={isBold(one)}>
+        {one.text}
+      </Text>
+    )
+    const plainLine = (text: string, color: string = colors.text) => (
+      <Box justifyContent="center">
+        <Text color={color} backgroundColor={colors.page}>
+          {text}
+        </Text>
+      </Box>
+    )
+    const banner = (surah: number) => (
+      <Box justifyContent="center" backgroundColor={colors.banner}>
+        <Text color={colors.gold} backgroundColor={colors.banner}>
+          ۞ <Text color={colors.text} backgroundColor={colors.banner} bold>{surahName(surah)}</Text> ۞
+        </Text>
+      </Box>
+    )
+    lineOfAyah = new Map()
+    const rows = lines.map((line, n) => {
+      if ('words' in line) {
+        for (const { ayah } of line.words) {
+          if (ayah !== null && !lineOfAyah.has(ayah)) {
+            lineOfAyah.set(ayah, n)
+          }
+        }
+      }
+
+      return (
+        <Box key={`l${n}`} justifyContent="center">
+          {'words' in line ? (
+            <Text color={colors.text} backgroundColor={colors.page}>
+              {line.words.map(piece)}
+            </Text>
+          ) : 'banner' in line ? (
+            banner(line.banner)
+          ) : (
+            plainLine(line.plain)
+          )}
+        </Box>
+      )
+    })
+
     return (
       <Box flexDirection="column" alignItems="center">
-        <Box
-          flexDirection="column"
-          borderStyle="double"
-          borderColor={colors.frame}
-          backgroundColor={colors.page}
-          paddingX={padding}
-        >
-          {header}
-          {rule}
-          {rows.map((row, i) => (
-            // On the terminal a blank row between lines keeps the tashkeel of one
-            // line clear of the next; an app's line height does that itself.
-            <Box key={`r${i}`} flexDirection="column">
-              {i > 0 && isCells && fit.isSpaced && plainLine('')}
-              {row}
-            </Box>
-          ))}
-          {rule}
-          <Box key="footer">{plainLine(`❁  ${toArabicDigits(current)}  ❁`, colors.gold)}</Box>
-          {/* On a line of its own: beside the ornaments, the terminal would reorder them. */}
+        <Box flexDirection="column" borderStyle="double" borderColor={colors.frame} backgroundColor={colors.page} paddingX={padding}>
+          <Box justifyContent="space-between" flexDirection="row-reverse">
+            <Text color={colors.dim} backgroundColor={colors.page}>{surahNames}</Text>
+            <Text color={colors.dim} backgroundColor={colors.page}>{where}</Text>
+          </Box>
+          {plainLine('─'.repeat(24), colors.frame)}
+          {rows}
+          {plainLine('─'.repeat(24), colors.frame)}
+          <Box key="footer">{plainLine(footer, colors.gold)}</Box>
           {sheet.q && <Box key="quarter">{plainLine(quarterOf(sheet.q), colors.dim)}</Box>}
         </Box>
-        <Box flexWrap="wrap" columnGap={2} justifyContent="center" marginTop={fit.hasMargin ? 1 : 0}>
-          {controls.map(control => (
-            <Button
-              plain
-              key={control.key}
-              hotkey={control.hotkey}
-              label={fit.isShort ? control.short : control.label}
-              onPress={control.press}
-            />
-          ))}
-        </Box>
-        {Input && fit.hasInput && (
-          <Box width={width + 2 + padding * 2}>
-            <Input
-              key="goto"
-              placeholder="Go to: page, surah:ayah, or b"
-              submitLabel="Go"
-              onSubmit={async value => {
-                const problem = await jump($, value)
-                if (problem) {
-                  $.ui.toast(problem)
-                }
-              }}
-            />
-          </Box>
-        )}
+        {buttons}
+        {goToField}
       </Box>
     )
   })

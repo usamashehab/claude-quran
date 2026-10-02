@@ -12,6 +12,8 @@ Read the whole Quran inside Claude Code, page by page, laid out like the Madinah
 | `/quran b` | Opens the page of your bookmarked ayah, with it highlighted. `/quran bookmark` works too |
 | `/quran font` | Sets up the terminal's Arabic font: on Linux it installs the fonts and a fontconfig rule, elsewhere it prints the steps (see [The Arabic font](#the-arabic-font)) |
 | `/quran font off` | On Linux, removes the fontconfig rule `/quran font` added. The font files stay installed, unused |
+| `/quran spacing` | In GNOME Terminal, makes its rows 1.2 times as tall: more room between the page's lines, and for the kasra below them. It changes the terminal's default profile, so every window using that profile gets it. Other terminals get the setting to change (kitty, WezTerm) |
+| `/quran spacing off` | Puts GNOME Terminal's row height back to what it was before `/quran spacing` |
 
 Anything else answers `Not a page, surah:ayah, or "b"`.
 
@@ -28,9 +30,12 @@ Anything else answers `Not a page, surah:ayah, or "b"`.
 | `t` | Tashkeel on / off |
 | `d` | Day / night page |
 | `g` | Letter gaps on / off (off at first): a cell after letters that do not join the next one (أَ حْمِلُكُمْ), and 2 between words. Terminal only |
+| `l` / `s` | Larger / smaller text. Terminal only: see [Text size](#text-size) |
 | `Esc` | Closes the pane |
 
 The keys are also buttons under the page, for a mouse or a touch screen. Below them, a **Go to** field takes the same page, `surah:ayah` or `b` as the command.
+
+In the terminal, click the page once and it takes the arrows too: `←` next page and `→` previous page, as a Mushaf turns leftward; `↓` / `↑` next and previous ayah; `+` / `-` text size; Page Down / Page Up next and previous page. The letter keys keep working there. Until the page is clicked, Claude Code keeps the arrows for itself (`↑` and `↓` scroll the pane), and `Esc` hands them back.
 
 ## What is kept
 
@@ -40,7 +45,11 @@ A page opens with no ayah highlighted; `j` or `k` picks one, and going to `surah
 
 The top line names the surah and the juz; the bottom shows the page number and, on a page where a hizb quarter starts, which one (ربع الحزب ٥). Each ayah ends with its number in ﴾ ﴿.
 
-In the terminal the whole page fits the pane's height, with no scrolling, down to a pane about as tall as its lines: when the pane is short, the page drops the blank rows between its lines, then the Go to field, then shortens the button labels. A terminal's text size is the terminal's own, so for larger text, zoom the terminal (ctrl and + in most).
+In the terminal the whole page fits the pane's height, with no scrolling, down to a pane about as tall as its lines: when the pane is short, the page drops the blank rows between its lines, then the Go to field, then shortens the button labels. For more room between lines whatever the pane's height, `/quran spacing` makes the terminal's rows taller.
+
+### Text size
+
+A terminal's text size is the terminal's own; no plugin sets it. `l` and `s` (or `+` and `-` on the clicked page) zoom GNOME Terminal's window in and out, the same as ctrl and + or -, so the rest of Claude Code grows or shrinks with the page. With more than one GNOME Terminal window open, or in another terminal, they say to press ctrl and + or - instead, as there is no telling which window is this one. The page then fits itself to the pane's new height.
 
 The page keeps the Mushaf's own 15 lines when the pane has room for its longest line: 38 to 73 columns, 57 for most pages, plus 6 for the frame. In a narrower pane the text reflows to fit, with the same highlights and bookmarks. The pane opens 88 columns wide, but a width you dragged the pane to is kept instead: drag it wider to see the Mushaf's lines. When the surah and the juz do not fit on one line, they take a line each.
 

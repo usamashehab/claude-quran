@@ -8,6 +8,10 @@ export type Tone = 'text' | 'marker' | 'symbol'
 // `ayah` is the ayah's index on the page; null for a gap between two ayahs.
 export type Piece = { text: string; ayah: number | null; tone: Tone }
 export type Token = { text: string; ayah: number; tone: Tone }
+// A terminal page as the page Client (page.tsx) draws it: rows of runs, each
+// [text, colour, background, bold].
+export type Span = [string, string, string, boolean]
+export type PageRows = Span[][]
 
 // Terminal cells a string takes: combining marks (tashkeel) and format
 // characters (direction marks, joiners) take none.
