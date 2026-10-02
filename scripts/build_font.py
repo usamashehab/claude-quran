@@ -9,6 +9,8 @@ Starts from Vazir Code and changes what a terminal draws badly:
   a kasra or kasratan under a deep letter (سَبِيلٍ) was cut off, as were the dots
   of final ي. Each letter's kasra is placed in the row clear of the letter, the
   dots moving up where that makes room (ب) or brings them into the row (ي).
+- Its marks were a hairline at terminal sizes, the dagger alef (ـٰ) least of all:
+  marks are drawn bolder, those over a letter larger, the dagger alef taller.
 - Its tanween looked like single marks at terminal sizes: fathatan and kasratan
   are drawn as two staggered strokes side by side, and dammatan as two dammas,
   one turned, as the Mushaf draws them. Shadda and tanween stack as two marks, so the new
@@ -52,7 +54,12 @@ GRID, MARGIN, GAP, STEP_UP = 10, 2, 20, 10
 # How far a mark may move to the side of a letter when nothing under it fits.
 SIDE = 120
 # The kasra's height against the font's, so it fits under a dot in the row.
-KASRA_HEIGHT = 0.7
+KASRA_HEIGHT = 0.58
+# Marks are drawn this many units bolder (shadda, with its fine curls, less), those
+# above a letter this much larger, and the dagger alef bolder and taller still,
+# so a terminal's few pixels show them.
+MARK_BOLD, SHADDA_BOLD, DAGGER_BOLD = 26, 8, 40
+MARK_SCALE, DAGGER_TALL = 1.15, 1.45
 LEFT, RIGHT, BOTTOM, TOP = -400, 1000, -700, 1300
 # How far a stroke reaches past the letter's edge: enough to meet the next
 # letter's stroke in a cell up to 0.5 + 2 * 0.08 em wide.
@@ -62,7 +69,7 @@ REACH = 80
 # them; kasratan less, to fit under a dot in the row. They stay about as tall as
 # the single mark, so they fit where it does.
 NARROW, APART = 0.62, 150
-STAGGER = {'uni064B': 25, 'uni064D': 10}
+STAGGER = {'uni064B': 25, 'uni064D': 0}
 # Dammatan: each damma this much smaller than the single one, this far apart.
 DAMMA_SCALE, DAMMA_GAP = 0.72, 20
 
@@ -73,6 +80,10 @@ MARK_LIGATURES = (3, 4)
 BELOW = 4
 FATHA, DAMMA, KASRA, SHADDA = 'uni064E', 'uni064F', 'uni0650', 'uni0651'
 FATHATAN, DAMMATAN, KASRATAN = 'uni064B', 'uni064C', 'uni064D'
+DAGGER = 'uni0670'
+SHADDAS = [SHADDA, 'uni0651064E', 'uni0651064F', 'uni064E0651']
+# The marks over a letter drawn larger.
+MARKS_OVER = [FATHA, DAMMA, SHADDA, 'uni0652', 'uni0653', 'uni0654', DAGGER, 'uni0651064E', 'uni0651064F', 'uni064E0651']
 # The marks the Quran text puts under a letter: each must fit in the row.
 MARKS_BELOW = [KASRA, KASRATAN]
 ARABIC = [(0x0600, 0x06FF), (0x0750, 0x077F), (0x08A0, 0x08FF), (0xFB50, 0xFDFF), (0xFE70, 0xFEFF)]
@@ -153,6 +164,31 @@ def flatten_kasra(font):
     """A flatter kasra, kept to the font's top edge (the one under the letter)."""
     top = bounds(font, KASRA)[3]
     save(font, KASRA, mapped(outline(font, KASRA), fy=lambda y: top + (y - top) * KASRA_HEIGHT))
+
+
+def bolder(value, by):
+    """The outline drawn bolder by `by` units, about its own centre: copies of it
+    moved across a square `by` wide, overlapping."""
+    half = by / 2
+    return [op for dx, dy in ((-half, -half), (half, -half), (-half, half), (half, half))
+            for op in mapped(value, fx=lambda x, dx=dx: x + dx, fy=lambda y, dy=dy: y + dy)]
+
+
+def strengthen_marks(font):
+    """Bolder marks, and larger ones over a letter, each kept to its edge nearest
+    the letter so it sits where the font placed it."""
+    for mark in MARKS_OVER + [KASRA]:
+        x0, y0, x1, y1 = bounds(font, mark)
+        centre = (x0 + x1) / 2
+        is_over = mark in MARKS_OVER
+        near = y0 if is_over else y1
+        tall = MARK_SCALE * (DAGGER_TALL if mark == DAGGER else 1) if is_over else 1
+        wide = MARK_SCALE if is_over else 1
+        value = mapped(outline(font, mark), fx=lambda x: centre + (x - centre) * wide, fy=lambda y: near + (y - near) * tall)
+        bold = DAGGER_BOLD if mark == DAGGER else SHADDA_BOLD if mark in SHADDAS else MARK_BOLD
+        # Bolder about the near edge too: the outline grows away from the letter.
+        shift = bold / 2 if is_over else -bold / 2
+        save(font, mark, mapped(bolder(value, bold), fy=lambda y: y + shift))
 
 
 def tanween(font):
@@ -385,6 +421,7 @@ def main():
 
     font = TTFont(source(cache))
     flatten_kasra(font)
+    strengthen_marks(font)
     tanween(font)
     unligate_tanween(font)
     placed = place_below(font, letters(font))

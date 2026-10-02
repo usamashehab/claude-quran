@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { cells, kashida, layout, spaceOut } from '../hooks/layout'
+import { cells, fitHeight, kashida, layout, spaceOut } from '../hooks/layout'
 
 // A small stand-in for data/quran.json: the tests cannot read files.
 // Pages hold Mushaf lines; every page but the few the test visits holds one ayah of surah 114.
@@ -147,5 +147,25 @@ test('a phone-width terminal gives the surah and the juz a line each', async ($,
 
   const juz = await ui.find({ type: 'Text', text: /^\s*الجزء/ })
   expect(juz?.text).not.toContain('سورة')
+  await ui.unmount()
+})
+
+test('a short pane drops blank rows, then the Go to field, then long labels, to fit', () => {
+  // 15 lines in a frame of 7 rows, one row of buttons at 200 columns.
+  const page = { bodyColumns: 200, lines: 15, frame: 7, hasInput: true, labels: [['Next page', 'page'] as [string, string]] }
+
+  expect(fitHeight({ ...page, bodyRows: 7 + 29 + 3 })).toEqual({ isSpaced: true, hasInput: true, hasMargin: true, isShort: false })
+  expect(fitHeight({ ...page, bodyRows: 7 + 29 + 2 }).isSpaced).toBe(false)
+  expect(fitHeight({ ...page, bodyRows: 7 + 15 + 1 })).toEqual({ isSpaced: false, hasInput: false, hasMargin: false, isShort: false })
+})
+
+test('a short terminal pane keeps the whole page in view: no Go to field, short labels', async ($, on) => {
+  world(on)
+  // Page 1 of the fixture: 4 lines in a 7-row frame, and one row of short labels.
+  const short = { ...PANE.props, scroll: { offset: 0, bodyRows: 12 } }
+  const ui = await $.ui.mount({ plugin: 'quran', surface: 'terminal', ...PANE, props: short })
+
+  expect(await ui.find({ type: 'Input' })).toBeUndefined()
+  expect(await ui.find({ type: 'Button', text: 'page' })).toBeDefined()
   await ui.unmount()
 })

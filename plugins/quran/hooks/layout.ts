@@ -212,3 +212,47 @@ export function layout(tokens: Token[], width: number, space = 1): Piece[][] {
 
   return lines.map((line, index) => justify(line, width, index === lines.length - 1, space))
 }
+
+// What a page drops to fit a pane `bodyRows` high: the blank rows between its
+// lines first, then the Go to field and the space above the buttons, then the
+// buttons' long labels. `frame` is the rows round the lines (border, header,
+// rules, footer); `labels` each button's long and short label.
+export type Fit = { isSpaced: boolean; hasInput: boolean; hasMargin: boolean; isShort: boolean }
+export function fitHeight(page: {
+  bodyRows: number
+  bodyColumns: number
+  lines: number
+  frame: number
+  hasInput: boolean
+  labels: [string, string][]
+}): Fit {
+  // A plain button draws as `n: label`, two columns from the next, wrapping.
+  const buttonRows = (isShort: boolean) => {
+    let rows = 1
+    let used = 0
+    for (const [long, short] of page.labels) {
+      const size = 3 + (isShort ? short : long).length
+      if (used > 0 && used + 2 + size > page.bodyColumns) {
+        rows++
+        used = 0
+      }
+      used += (used > 0 ? 2 : 0) + size
+    }
+
+    return rows
+  }
+  const ways: Fit[] = [
+    { isSpaced: true, hasInput: page.hasInput, hasMargin: true, isShort: false },
+    { isSpaced: false, hasInput: page.hasInput, hasMargin: true, isShort: false },
+    { isSpaced: false, hasInput: false, hasMargin: false, isShort: false },
+    { isSpaced: false, hasInput: false, hasMargin: false, isShort: true },
+  ]
+  const height = (way: Fit) =>
+    page.frame +
+    (way.isSpaced ? page.lines * 2 - 1 : page.lines) +
+    (way.hasMargin ? 1 : 0) +
+    buttonRows(way.isShort) +
+    (way.hasInput ? 1 : 0)
+
+  return ways.find(way => height(way) <= page.bodyRows) ?? ways[ways.length - 1]!
+}

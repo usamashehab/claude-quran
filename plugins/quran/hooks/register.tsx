@@ -3,7 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Bookmark, Theme } from '../types'
 import { CONF_NAME, FAMILIES, FONT_FILES, FONTCONFIG, OTHER_SYSTEMS } from './font'
-import { cells, GUARD, inline, justify, layout, naturalWidth, spaceOut } from './layout'
+import { cells, fitHeight, GUARD, inline, justify, layout, naturalWidth, spaceOut } from './layout'
 import type { Piece, Token } from './layout'
 
 const PANE = 'quran'
@@ -531,13 +531,14 @@ export const register: Register = on => {
       .join(' · ')
     const where = `الجزء ${toArabicDigits(sheet.j)}`
     // Too narrow for both, the surah and the juz take a line each.
+    const isHeaderOneLine = cells(surahNames) + cells(where) + 1 <= width
     const header =
       !isCells ? (
         <Box justifyContent="space-between" flexDirection="row-reverse">
           <Text color={colors.dim} backgroundColor={colors.page}>{surahNames}</Text>
           <Text color={colors.dim} backgroundColor={colors.page}>{where}</Text>
         </Box>
-      ) : cells(surahNames) + cells(where) + 1 <= width ? (
+      ) : isHeaderOneLine ? (
         <Text color={colors.dim} backgroundColor={colors.page}>
           {surahNames}
           {' '.repeat(width - cells(surahNames) - cells(where))}
@@ -557,6 +558,28 @@ export const register: Register = on => {
       plainLine('─'.repeat(24), colors.frame)
     )
 
+    // The page fits the pane's height, no scrolling: the blank rows between lines
+    // go first, then the Go to field, then the buttons' long labels.
+    const controls = [
+      { key: 'next', hotkey: 'n', label: 'Next page', short: 'page', press: () => goTo($, current + 1) },
+      { key: 'prev', hotkey: 'p', label: 'Prev page', short: 'back', press: () => goTo($, current - 1) },
+      { key: 'down', hotkey: 'j', label: 'Next ayah', short: 'ayah', press: () => moveCursor($, 1) },
+      { key: 'up', hotkey: 'k', label: 'Prev ayah', short: 'up', press: () => moveCursor($, -1) },
+      { key: 'mark', hotkey: 'm', label: 'Bookmark', short: 'mark', press: () => markCursor($) },
+      { key: 'bookmark', hotkey: 'b', label: 'Go to bookmark', short: 'go', press: () => goToBookmark($) },
+      { key: 'plain', hotkey: 't', label: 'Tashkeel', short: 'tashkeel', press: () => update($, isPlain, (value: boolean) => !value) },
+      { key: 'theme', hotkey: 'd', label: 'Day/Night', short: 'night', press: () => toggleTheme($) },
+      { key: 'spacing', hotkey: 'g', label: 'Letter gaps', short: 'gaps', press: () => update($, isSpaced, (value: boolean) => !value) },
+    ]
+    const fit = fitHeight({
+      bodyRows: isCells ? e.props.scroll.bodyRows : Infinity,
+      bodyColumns: e.props.bodyColumns,
+      lines: rows.length,
+      frame: 2 + (isHeaderOneLine ? 1 : 2) + 2 + 1 + (sheet.q ? 1 : 0),
+      hasInput: Input !== undefined,
+      labels: controls.map(control => [control.label, control.short]),
+    })
+
     return (
       <Box flexDirection="column" alignItems="center">
         <Box
@@ -572,7 +595,7 @@ export const register: Register = on => {
             // On the terminal a blank row between lines keeps the tashkeel of one
             // line clear of the next; an app's line height does that itself.
             <Box key={`r${i}`} flexDirection="column">
-              {i > 0 && isCells && plainLine('')}
+              {i > 0 && isCells && fit.isSpaced && plainLine('')}
               {row}
             </Box>
           ))}
@@ -581,30 +604,18 @@ export const register: Register = on => {
           {/* On a line of its own: beside the ornaments, the terminal would reorder them. */}
           {sheet.q && <Box key="quarter">{plainLine(quarterOf(sheet.q), colors.dim)}</Box>}
         </Box>
-        <Box flexWrap="wrap" columnGap={2} justifyContent="center" marginTop={1}>
-          <Button plain key="next" hotkey="n" label="Next page" onPress={() => goTo($, current + 1)} />
-          <Button plain key="prev" hotkey="p" label="Prev page" onPress={() => goTo($, current - 1)} />
-          <Button plain key="down" hotkey="j" label="Next ayah" onPress={() => moveCursor($, 1)} />
-          <Button plain key="up" hotkey="k" label="Prev ayah" onPress={() => moveCursor($, -1)} />
-          <Button plain key="mark" hotkey="m" label="Bookmark" onPress={() => markCursor($)} />
-          <Button plain key="bookmark" hotkey="b" label="Go to bookmark" onPress={() => goToBookmark($)} />
-          <Button
-            plain
-            key="plain"
-            hotkey="t"
-            label="Tashkeel"
-            onPress={() => update($, isPlain, (value: boolean) => !value)}
-          />
-          <Button plain key="theme" hotkey="d" label="Day/Night" onPress={() => toggleTheme($)} />
-          <Button
-            plain
-            key="spacing"
-            hotkey="g"
-            label="Letter gaps"
-            onPress={() => update($, isSpaced, (value: boolean) => !value)}
-          />
+        <Box flexWrap="wrap" columnGap={2} justifyContent="center" marginTop={fit.hasMargin ? 1 : 0}>
+          {controls.map(control => (
+            <Button
+              plain
+              key={control.key}
+              hotkey={control.hotkey}
+              label={fit.isShort ? control.short : control.label}
+              onPress={control.press}
+            />
+          ))}
         </Box>
-        {Input && (
+        {Input && fit.hasInput && (
           <Box width={width + 2 + padding * 2}>
             <Input
               key="goto"
