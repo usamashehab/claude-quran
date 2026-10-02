@@ -193,23 +193,6 @@ test('on the clicked terminal page the arrows turn pages leftward, as a Mushaf d
   await ui.unmount()
 })
 
-test('text size outside GNOME Terminal points to the terminal zoom keys', async ($, on) => {
-  world(on)
-  on('env.get', () => ({ value: undefined }))
-  const toasts: string[] = []
-  on('ui.toast', (_$, e) => {
-    toasts.push(e.text)
-
-    return { value: undefined }
-  })
-  const ui = await $.ui.mount({ plugin: 'quran', surface: 'terminal', ...PANE })
-
-  await ui.press({ key: 'larger' })
-  await ui.key({ key: '-', in: 'page' })
-  expect(toasts).toEqual(["Text size is the terminal's: press ctrl and +", "Text size is the terminal's: press ctrl and -"])
-  await ui.unmount()
-})
-
 test('/quran spacing sets GNOME Terminal rows to 1.2 and spacing off puts back the height before', async ($, on) => {
   world(on)
   const quran = (args: string) =>

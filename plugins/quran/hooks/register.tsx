@@ -5,7 +5,7 @@ import type { Bookmark, Theme } from '../types'
 import { CONF_NAME, FAMILIES, FONT_FILES, FONTCONFIG, OTHER_SYSTEMS } from './font'
 import { cells, fitHeight, GUARD, inline, justify, layout, naturalWidth, spaceOut } from './layout'
 import type { PageRows, Piece, Span, Token } from './layout'
-import { GNOME_PROFILES, GNOME_TERMINAL, gnomeProfile, LINE_HEIGHT, OTHER_TERMINALS_SPACING } from './terminal'
+import { GNOME_PROFILES, gnomeProfile, LINE_HEIGHT, OTHER_TERMINALS_SPACING } from './terminal'
 
 const PANE = 'quran'
 const PAGES = 604
@@ -289,24 +289,6 @@ async function fontOff($: EngineInterface): Promise<string> {
   return `Removed ${conf}. Restart your terminal to go back to its own Arabic font.`
 }
 
-// The terminal's own text size, as ctrl and + or - sets it. GNOME Terminal zooms
-// a window over D-Bus; with several open there is no telling which is this one.
-async function zoom($: EngineInterface, way: 'in' | 'out') {
-  if (await $.env.get('GNOME_TERMINAL_SCREEN')) {
-    const bus = ['gdbus', '--session', '--dest', GNOME_TERMINAL]
-    const tree = await runQuietly($, ['gdbus', 'introspect', ...bus.slice(1), '--object-path', '/org/gnome/Terminal/window'])
-    const windows = [...(tree?.stdout ?? '').matchAll(/node (\d+) \{/g)].map(match => match[1])
-    if (windows.length === 1) {
-      const path = `/org/gnome/Terminal/window/${windows[0]}`
-      const done = await runQuietly($, ['gdbus', 'call', ...bus.slice(1), '--object-path', path, '--method', 'org.gtk.Actions.Activate', `zoom-${way}`, '[]', '{}'])
-      if (done?.exitCode === 0) {
-        return
-      }
-    }
-  }
-  $.ui.toast(`Text size is the terminal's: press ctrl and ${way === 'in' ? '+' : '-'}`)
-}
-
 // `/quran spacing` and `/quran spacing off`: GNOME Terminal's row height, for its
 // default profile. The height it had before is kept, to put back.
 async function terminalProfile($: EngineInterface) {
@@ -359,8 +341,6 @@ const CONTROLS = [
   { key: 'plain', hotkey: 't', label: 'Tashkeel', short: 'tashkeel', isCells: false },
   { key: 'theme', hotkey: 'd', label: 'Day/Night', short: 'night', isCells: false },
   { key: 'spacing', hotkey: 'g', label: 'Letter gaps', short: 'gaps', isCells: true },
-  { key: 'larger', hotkey: 'l', label: 'Larger text', short: 'A+', isCells: true },
-  { key: 'smaller', hotkey: 's', label: 'Smaller text', short: 'A-', isCells: true },
 ]
 
 // Keys the clicked page (page.tsx) hands on: the buttons' hotkeys, and the arrows,
@@ -373,9 +353,6 @@ const PAGE_KEYS: Record<string, string> = {
   pageup: 'prev',
   down: 'down',
   up: 'up',
-  '+': 'larger',
-  '=': 'larger',
-  '-': 'smaller',
 }
 
 async function act($: EngineInterface, key: string) {
@@ -398,10 +375,6 @@ async function act($: EngineInterface, key: string) {
       return toggleTheme($)
     case 'spacing':
       return update($, isSpaced, (value: boolean) => !value)
-    case 'larger':
-      return zoom($, 'in')
-    case 'smaller':
-      return zoom($, 'out')
   }
 
   return undefined
