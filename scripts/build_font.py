@@ -9,6 +9,7 @@ Starts from Vazir Code and changes what a terminal draws badly:
   a kasra or kasratan under a deep letter (سَبِيلٍ) was cut off, as were the dots
   of final ي. Each letter's kasra is placed in the row clear of the letter, the
   dots moving up where that makes room (ب) or brings them into the row (ي).
+- Its letters are light beside the Mushaf's heavy script: they are drawn bolder.
 - Its marks were a hairline at terminal sizes, the dagger alef (ـٰ) least of all:
   marks are drawn bolder, those over a letter larger, the dagger alef taller.
 - Its tanween looked like single marks at terminal sizes: fathatan and kasratan
@@ -58,7 +59,9 @@ KASRA_HEIGHT = 0.58
 # Marks are drawn this many units bolder, those above a letter this much larger,
 # and the dagger alef bolder and taller still, so a terminal's few pixels show
 # them; shadda keeps its own size and weight, as its fine curls fill in otherwise.
-MARK_BOLD, DAGGER_BOLD = 10, 22
+MARK_BOLD, DAGGER_BOLD = 18, 26
+# Letters drawn this many units bolder, nearer the Mushaf's heavy script.
+LETTER_BOLD = 35
 MARK_SCALE, DAGGER_TALL = 1.25, 1.45
 LEFT, RIGHT, BOTTOM, TOP = -400, 1000, -700, 1300
 # How far a stroke reaches past the letter's edge: enough to meet the next
@@ -172,6 +175,14 @@ def bolder(value, by):
     half = by / 2
     return [op for dx, dy in ((-half, -half), (half, -half), (-half, half), (half, half))
             for op in mapped(value, fx=lambda x, dx=dx: x + dx, fy=lambda y, dy=dy: y + dy)]
+
+
+def embolden(font, names):
+    """Letters drawn bolder about their own outline, their dots with them."""
+    if LETTER_BOLD:
+        originals = {name: outline(font, name) for name in names}
+        for name in names:
+            save(font, name, bolder(originals[name], LETTER_BOLD))
 
 
 def strengthen_marks(font):
@@ -420,6 +431,7 @@ def main():
     cache.mkdir(parents=True, exist_ok=True)
 
     font = TTFont(source(cache))
+    embolden(font, letters(font))
     flatten_kasra(font)
     strengthen_marks(font)
     tanween(font)

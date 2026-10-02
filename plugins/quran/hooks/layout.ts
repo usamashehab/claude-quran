@@ -40,28 +40,6 @@ function guard(line: Token[]): Token[] {
   })
 }
 
-function fill(tokens: Token[], width: number, space: number): Token[][] {
-  const lines: Token[][] = []
-  let line: Token[] = []
-  let used = 0
-  for (const token of tokens) {
-    // A sign may land at the edge of the line and take a guard.
-    const size = cells(token.text) + (token.tone === 'text' ? 0 : 1)
-    if (line.length > 0 && used + space + size > width) {
-      lines.push(line)
-      line = []
-      used = 0
-    }
-    used += (line.length > 0 ? space : 0) + size
-    line.push(token)
-  }
-  if (line.length > 0) {
-    lines.push(line)
-  }
-
-  return lines
-}
-
 function merge(pieces: Piece[]): Piece[] {
   const merged: Piece[] = []
   for (const piece of pieces) {
@@ -206,22 +184,17 @@ export function inline(line: Token[]): Piece[] {
 // The cells a line takes with `space` cells between its tokens.
 export const naturalWidth = (line: Token[], space = 1) => widthOf(guard(line)) + Math.max(0, line.length - 1) * space
 
-// Reflows tokens into lines of `width`: each justified, the last centred.
-export function layout(tokens: Token[], width: number, space = 1): Piece[][] {
-  const lines = fill(tokens, width, space)
-
-  return lines.map((line, index) => justify(line, width, index === lines.length - 1, space))
-}
-
 // What a page drops to fit a pane `bodyRows` high: the blank rows between its
 // lines first, then the Go to field and the space above the buttons, then the
-// buttons' long labels. `frame` is the rows round the lines (border, header,
-// rules, footer); `labels` each button's long and short label.
+// buttons' long labels. `rows` is the rows its lines take, `gaps` the blank rows
+// between them, `frame` the rows round them (border, header, rules, footer), and
+// `labels` each button's long and short label.
 export type Fit = { isSpaced: boolean; hasInput: boolean; hasMargin: boolean; isShort: boolean }
 export function fitHeight(page: {
   bodyRows: number
   bodyColumns: number
-  lines: number
+  rows: number
+  gaps: number
   frame: number
   hasInput: boolean
   labels: [string, string][]
@@ -249,10 +222,39 @@ export function fitHeight(page: {
   ]
   const height = (way: Fit) =>
     page.frame +
-    (way.isSpaced ? page.lines * 2 - 1 : page.lines) +
+    page.rows +
+    (way.isSpaced ? page.gaps : 0) +
     (way.hasMargin ? 1 : 0) +
     buttonRows(way.isShort) +
     (way.hasInput ? 1 : 0)
 
   return ways.find(way => height(way) <= page.bodyRows) ?? ways[ways.length - 1]!
+}
+
+const tokenCells = (token: Token) => cells(token.text) + (token.tone === 'text' ? 0 : 1)
+
+// A Mushaf line too wide for `width`, cut into as few rows as fit, each about as
+// full as the others, so the line still ends where the Mushaf ends it.
+export function split(tokens: Token[], width: number, space = 1): Token[][] {
+  const total = naturalWidth(tokens, space)
+  for (let count = Math.max(1, Math.ceil(total / width)); count < tokens.length; count++) {
+    // Each row ends before the word whose middle passes its share of the line.
+    const parts: Token[][] = [[]]
+    let at = 0
+    for (const token of tokens) {
+      const size = tokenCells(token)
+      const part = parts[parts.length - 1]!
+      if (part.length > 0 && parts.length < count && at + size / 2 > (total * parts.length) / count) {
+        parts.push([token])
+      } else {
+        part.push(token)
+      }
+      at += size + space
+    }
+    if (parts.every(part => naturalWidth(part, space) <= width)) {
+      return parts
+    }
+  }
+
+  return tokens.map(token => [token])
 }
