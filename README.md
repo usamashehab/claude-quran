@@ -25,8 +25,8 @@ claude --plugin-dir ./plugins/quran
 
 Check it with `claude plugin validate ./plugins/quran` and `claude plugin test ./plugins/quran`.
 
-Rebuild the page data (`plugins/quran/data/quran.json`) from the Quran.com and AlQuran Cloud APIs with `python3 scripts/build_data.py`; downloads are kept in `.cache/`.
+Rebuild the page data (`plugins/quran/data/quran.json`) from the Quran.com and AlQuran Cloud APIs with `python3 scripts/build_data.py`; downloads are kept in `.cache/`. Rebuild the terminal font (`plugins/quran/fonts/VazirCodeQuran.ttf`) from Vazir Code with `python3 scripts/build_font.py` (needs `pip install fonttools`).
 
 ## License
 
-The code is MIT licensed (see [LICENSE](LICENSE)). The bundled fonts keep their own licenses: Vazir Code under the Bitstream Vera license (`plugins/quran/fonts/Vazir-Code-LICENSE.txt`) and Kawkab Mono under the SIL Open Font License 1.1 (`plugins/quran/fonts/KawkabMono-OFL.txt`), and the Quran text and page layout come from the sources credited in [plugins/quran/README.md](plugins/quran/README.md).
+The code is MIT licensed (see [LICENSE](LICENSE)). The bundled fonts keep their own licenses: Vazir Code Quran (a changed Vazir Code) under the Bitstream Vera license (`plugins/quran/fonts/Vazir-Code-LICENSE.txt`) and Kawkab Mono under the SIL Open Font License 1.1 (`plugins/quran/fonts/KawkabMono-OFL.txt`), and the Quran text and page layout come from the sources credited in [plugins/quran/README.md](plugins/quran/README.md).

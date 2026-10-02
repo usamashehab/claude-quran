@@ -36,7 +36,7 @@ In the Claude desktop and mobile apps and in VS Code, the page is set in the app
 
 Terminals draw text in their own monospace font, and most monospace fonts draw Arabic poorly. `/quran font` fixes that:
 
-- **Linux** (fontconfig): installs Vazir Code and Kawkab Mono to `~/.local/share/fonts`, and adds one file, `~/.config/fontconfig/conf.d/60-quran-arabic.conf`. With it, monospace fonts give their Arabic over to Vazir Code, a monospace font whose letters join across cells and whose alef stands clear of the next letter, and to Kawkab Mono for the few marks Vazir Code lacks, such as the alef wasla (ٱ). Latin text keeps your font. Restart the terminal after running it. `/quran font off` removes the file.
+- **Linux** (fontconfig): installs Vazir Code Quran and Kawkab Mono to `~/.local/share/fonts`, and adds one file, `~/.config/fontconfig/conf.d/60-quran-arabic.conf`. With it, monospace fonts give their Arabic over to Vazir Code Quran, and to Kawkab Mono for the few marks it lacks, such as the alef wasla (ٱ). Vazir Code Quran is Vazir Code, a monospace font whose alef stands clear of the next letter, with its joining strokes lengthened so joined letters meet whatever your terminal's cell width. Latin text keeps your font. Restart the terminal after running it. `/quran font off` removes the file.
 - **macOS, Windows, others**: the command prints the setting to change in iTerm2, WezTerm, Windows Terminal and others. Both fonts are in this mod's `fonts/` folder.
 
 A terminal still puts every letter in a fixed-width cell, so the page reads like the Mushaf in a plainer hand: the same lines and words, without the calligraphy's stretched letters and stacked words.
@@ -45,4 +45,4 @@ A terminal still puts every letter in a fixed-width cell, so the page reads like
 
 - Mushaf text and line layout: [Quran.com API](https://api.quran.com) (Quran Foundation), Madinah Mushaf, 15-line layout. The text is the King Fahd Complex (KFGQPC) Hafs text, with its Mushaf-specific marks mapped to the standard ones a monospace font draws: open tanween to tanween, the Mushaf sukun to sukun, and the small iqlab meem left out.
 - Surah names: [AlQuran Cloud](https://alquran.cloud) (Tanzil Uthmani text).
-- Fonts: [Vazir Code](https://github.com/rastikerdar/vazir-code-font) by Saber Rastikerdar, Bitstream Vera license (`fonts/Vazir-Code-LICENSE.txt`); [Kawkab Mono](https://github.com/aiaf/kawkab-mono) by Abdullah Arif, SIL Open Font License 1.1 (`fonts/KawkabMono-OFL.txt`).
+- Fonts: [Vazir Code](https://github.com/rastikerdar/vazir-code-font) by Saber Rastikerdar, Bitstream Vera license (`fonts/Vazir-Code-LICENSE.txt`), with lengthened joining strokes and renamed Vazir Code Quran; [Kawkab Mono](https://github.com/aiaf/kawkab-mono) by Abdullah Arif, SIL Open Font License 1.1 (`fonts/KawkabMono-OFL.txt`).

@@ -272,7 +272,7 @@ async function fontOn($: EngineInterface): Promise<string> {
 
 async function fontOff($: EngineInterface): Promise<string> {
   if (!(await isLinux($))) {
-    return 'Nothing to undo here: remove Vazir Code and Kawkab Mono from your terminal font settings.'
+    return 'Nothing to undo here: remove Vazir Code Quran and Kawkab Mono from your terminal font settings.'
   }
   const { conf } = await fontPaths($)
   await runQuietly($, ['rm', '-f', conf])

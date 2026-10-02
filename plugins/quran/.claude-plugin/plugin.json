@@ -1,6 +1,6 @@
 {
   "name": "quran",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Read the Quran in a pane, laid out like the Madinah Mushaf (604 pages, 15 lines), with a saved place and a bookmarked ayah",
   "types": "./types/index.d.ts",
   "author": {
