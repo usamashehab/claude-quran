@@ -106,6 +106,8 @@ test('a Mushaf line too wide for the pane splits into rows that each fill it, in
 
 test('kashida stretches a word before its last letter only', () => {
   expect(kashida('قُلُوبِهِمْ')).toBe('قُلُوبِهِـمْ')
+  // A stretched word stretches further at the same place.
+  expect(kashida('قُلُوبِهِـمْ')).toBe('قُلُوبِهِــمْ')
   // Its only joint is after the first letter: print never stretches there.
   expect(kashida('عَذَابٌ')).toBeUndefined()
   expect(kashida('لَا')).toBeUndefined()

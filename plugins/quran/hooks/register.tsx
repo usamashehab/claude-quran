@@ -509,10 +509,8 @@ export const register: Register = on => {
           addWords(inline(tokens))
           continue
         }
-        // Split in a narrow pane, each row is set at its natural spacing, centred:
-        // stretched to the width, a half line would gape.
-        const parts = split(tokens, width, space)
-        parts.forEach((part, i) => addWords(justify(part, width, isCentred || parts.length > 1, space), i === 0))
+        // As in the Mushaf, every row runs the full width, split rows too.
+        split(tokens, width, space).forEach((part, i) => addWords(justify(part, width, isCentred, space), i === 0))
         continue
       }
       if (line === null) {

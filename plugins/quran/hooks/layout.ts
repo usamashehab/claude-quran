@@ -83,8 +83,9 @@ export function spaceOut(word: string): string {
   return out.replace(/\u0000(\p{M}*)/gu, '$1 ')
 }
 
-// Letters that join the letter after them, so a kashida (ـ) may follow them.
-const DUAL_JOINING = /[بتثجحخسشصضطظعغفقكلمنهيىئ]/
+// Letters that join the letter after them, so a kashida (ـ) may follow them; a
+// kashida itself, so a word can take more than one.
+const DUAL_JOINING = /[بتثجحخسشصضطظعغفقكلمنهيىئـ]/
 const ALEF = /[اأإآٱ]/
 
 // The word with one kashida before its last letter, where print stretches a
@@ -109,7 +110,11 @@ export function kashida(word: string): string | undefined {
   return [...chars.slice(0, last), 'ـ', ...chars.slice(last)].join('')
 }
 
-// Takes up to half of `free` with kashidas, one per word, longest words first.
+// Most kashidas one word takes.
+const KASHIDAS = 3
+
+// Takes up to half of `free` with kashidas, longest words first, a round at a
+// time, so the stretch spreads over the line before any word takes a second.
 function stretch(line: Token[], free: number): Token[] {
   const stretched = [...line]
   let budget = Math.floor(free / 2)
@@ -117,15 +122,17 @@ function stretch(line: Token[], free: number): Token[] {
     .map((token, index) => ({ index, size: cells(token.text), isWord: token.tone === 'text' }))
     .filter(one => one.isWord && one.size >= 3)
     .sort((a, b) => b.size - a.size)
-  for (const { index } of longestFirst) {
-    if (budget === 0) {
-      break
-    }
-    const token = stretched[index]
-    const longer = token && kashida(token.text)
-    if (token && longer) {
-      stretched[index] = { ...token, text: longer }
-      budget--
+  for (let round = 0; round < KASHIDAS && budget > 0; round++) {
+    for (const { index } of longestFirst) {
+      if (budget === 0) {
+        break
+      }
+      const token = stretched[index]
+      const longer = token && kashida(token.text)
+      if (token && longer) {
+        stretched[index] = { ...token, text: longer }
+        budget--
+      }
     }
   }
 
