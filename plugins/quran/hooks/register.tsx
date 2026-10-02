@@ -46,8 +46,9 @@ const PALETTES = {
 type Segment = [number, number, string, number]
 // A Mushaf line: empty, a surah's header, its basmala, or words.
 type Line = null | { h: number } | { b: number } | Segment[]
-// j, h: the juz and hizb the page starts in; l: its lines, 15 but for pages 1 and 2.
-type Page = { j: number; h: number; l: Line[] }
+// j: the juz the page starts in; q: [quarter, hizb] of a hizb quarter that starts on
+// it (quarter 0 to 3 for its start, ¼, ½, ¾); l: its lines, 15 but for pages 1 and 2.
+type Page = { j: number; q: [number, number] | null; l: Line[] }
 // [arabic name, english name, ayah count]
 type Surah = [string, string, number]
 type Quran = { s: Surah[]; p: Page[] }
@@ -63,7 +64,7 @@ async function load($: EngineInterface): Promise<Quran> {
   return quran
 }
 
-const pageOf = (q: Quran, n: number): Page => q.p[n - 1] ?? { j: 1, h: 1, l: [] }
+const pageOf = (q: Quran, n: number): Page => q.p[n - 1] ?? { j: 1, q: null, l: [] }
 const surahOf = (q: Quran, s: number): Surah => q.s[s - 1] ?? ['', '', 0]
 const isWords = (line: Line): line is Segment[] => Array.isArray(line)
 
@@ -93,6 +94,10 @@ const toArabicDigits = (n: number) =>
 // Plain mode drops diacritics, which many terminals draw badly.
 const plain = (text: string) =>
   text.replace(/[ؐ-ًؚ-ٰٟۖ-ۭ]/g, '').replace(/ٱ/g, 'ا')
+
+// The hizb quarter that starts on a page, as the Mushaf's margin marks it.
+const QUARTERS = ['', 'ربع ', 'نصف ', 'ثلاثة أرباع ']
+const quarterOf = ([part, hizb]: [number, number]) => `${QUARTERS[part] ?? ''}الحزب ${toArabicDigits(hizb)}`
 
 const clampPage = (n: number) => Math.min(PAGES, Math.max(1, n))
 
@@ -480,7 +485,7 @@ export const register: Register = on => {
     const surahNames = [...new Set(ayahs.map(one => one.surah))]
       .map(s => `سورة ${show(surahOf(q, s)[0])}`)
       .join(' · ')
-    const where = `الجزء ${toArabicDigits(sheet.j)} · الحزب ${toArabicDigits(sheet.h)}`
+    const where = `الجزء ${toArabicDigits(sheet.j)}`
     const headerGap = ' '.repeat(Math.max(1, width - cells(surahNames) - cells(where)))
 
     return (
@@ -511,6 +516,8 @@ export const register: Register = on => {
             {'─'.repeat(width)}
           </Text>
           <Box key="footer">{plainLine(`❁  ${toArabicDigits(current)}  ❁`, colors.gold)}</Box>
+          {/* On a line of its own: beside the ornaments, the terminal would reorder them. */}
+          {sheet.q && <Box key="quarter">{plainLine(quarterOf(sheet.q), colors.dim)}</Box>}
         </Box>
         <Box flexWrap="wrap" columnGap={2} justifyContent="center" marginTop={1}>
           <Button plain key="next" hotkey="n" label="Next page" onPress={() => goTo($, current + 1)} />

@@ -29,14 +29,20 @@ PAGE_URL = (
 SURAHS_URL = 'https://api.alquran.cloud/v1/surah'
 
 # The Mushaf's own codepoints for open tanween and its sukun become the standard
-# marks a monospace font has; the small iqlab meem has no drawable form and goes.
+# marks a monospace font has.
 MAP = {
     'ٗ': 'ً', 'ٞ': 'ٌ', 'ٖ': 'ٍ',
     'ۡ': 'ْ', '۠': 'ْ', 'ۤ': 'ٓ',
-    'ۢ': '', 'ۭ': '',
 }
-JOINS_NEXT = set('بتثجحخسشصضطظعغفقكلمنهيىئ')
+# Iqlab: the Mushaf writes a tanween as one vowel and a small meem (أَلِيمُۢ),
+# which no monospace font draws, so the pair becomes the tanween (أَلِيمٌ). A small
+# meem on a letter with no vowel (مِنۢ) goes on its own.
+IQLAB = re.compile('([َُِ])?[ۭۢ]')
+TANWEEN = {'َ': 'ً', 'ُ': 'ٌ', 'ِ': 'ٍ'}
+JOINS_NEXT = set('بتثجحخسشصضطظعغ'
+                 'فقكلمنهيىئ')
 MARK = re.compile('[ؐ-ًؚ-ٟۖ-ۭ]')
+FATHA, DAGGER, TATWEEL = 'َ', 'ٰ', 'ـ'
 
 
 def dagger(word):
@@ -48,20 +54,19 @@ def dagger(word):
     out = []
     chars = list(word)
     for i, char in enumerate(chars):
-        if char != 'ٰ':
-            out.append(char)
-            continue
-        base = next((c for c in reversed(out) if not MARK.match(c)), '')
-        is_followed = any(not MARK.match(c) and c != 'ٰ' for c in chars[i + 1:])
-        if base in JOINS_NEXT and is_followed:
-            out.append('ـ')
-        elif out and out[-1] == 'َ':
-            out.pop()
+        if char == DAGGER and out and out[-1] == FATHA:
+            base = next((c for c in reversed(out) if not MARK.match(c)), '')
+            is_followed = any(not MARK.match(c) and c != DAGGER for c in chars[i + 1:])
+            if base in JOINS_NEXT and is_followed:
+                out.append(TATWEEL)
+            else:
+                out.pop()
         out.append(char)
     return ''.join(out)
 
 
 def terminal(word):
+    word = IQLAB.sub(lambda match: TANWEEN.get(match.group(1) or '', ''), word)
     return dagger(''.join(MAP.get(char, char) for char in word))
 
 
@@ -98,6 +103,20 @@ def page_lines(verses):
     return lines
 
 
+def quarter_start(verses, before):
+    """[quarter, hizb] of a hizb quarter that begins on the page, else None.
+
+    quarter is 0 at the hizb's start, then 1, 2 and 3 at its ¼, ½ and ¾.
+    """
+    previous = before['rub_el_hizb_number'] if before else 0
+    for verse in verses:
+        rub = verse['rub_el_hizb_number']
+        if rub != previous:
+            return [(rub - 1) % 4, (rub - 1) // 4 + 1]
+        previous = rub
+    return None
+
+
 def place_headers(pages):
     """Surah headers and basmalas sit on the empty lines just above a first ayah.
 
@@ -130,7 +149,8 @@ def main():
 
     with ThreadPoolExecutor(6) as pool:
         verses = list(pool.map(lambda n: fetch(PAGE_URL.format(n), cache / f'page-{n:03}.json')['verses'], range(1, PAGES + 1)))
-    pages = [{'j': v[0]['juz_number'], 'h': v[0]['hizb_number'], 'l': page_lines(v)} for v in verses]
+    pages = [{'j': v[0]['juz_number'], 'q': quarter_start(v, verses[n - 1][-1] if n else None), 'l': page_lines(v)}
+             for n, v in enumerate(verses)]
     place_headers(pages)
     # Pages 1 and 2 hold fewer lines.
     for page in pages[:2]:

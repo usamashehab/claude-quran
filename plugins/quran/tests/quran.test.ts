@@ -7,14 +7,14 @@ import { cells, kashida, layout, spaceOut } from '../hooks/layout'
 // Pages hold Mushaf lines; every page but the few the test visits holds one ayah of surah 114.
 function fixture() {
   const s = Array.from({ length: 114 }, (_, i) => [`سورة${i + 1}`, `Surah ${i + 1}`, 7])
-  const p: { j: number; h: number; l: unknown[] }[] = Array.from({ length: 604 }, (_, i) => ({ j: Math.floor(i / 20) + 1, h: 1, l: [[[114, 1, 'قُلْ', 1]]] }))
-  p[0] = { j: 1, h: 1, l: [{ h: 1 }, ...[1, 2, 3].map(a => [[1, a, `آية ${a}`, 1]])] }
+  const p: { j: number; q: [number, number] | null; l: unknown[] }[] = Array.from({ length: 604 }, (_, i) => ({ j: Math.floor(i / 20) + 1, q: null, l: [[[114, 1, 'قُلْ', 1]]] }))
+  p[0] = { j: 1, q: [0, 1], l: [{ h: 1 }, ...[1, 2, 3].map(a => [[1, a, `آية ${a}`, 1]])] }
   p[1] = {
     j: 1,
-    h: 1,
+    q: null,
     l: [{ h: 2 }, { b: 2 }, [[2, 1, 'الٓمٓ', 1], [2, 2, 'ذَٰلِكَ ٱلْكِتَٰبُ', 0]], [[2, 2, 'لَا رَيْبَ', 1], [2, 3, 'ٱلَّذِينَ', 1]]],
   }
-  p[41] = { j: 3, h: 5, l: [[[2, 255, 'ٱللَّهُ لَآ إِلَٰهَ إِلَّا هُوَ', 1]]] }
+  p[41] = { j: 3, q: [1, 5], l: [[[2, 255, 'ٱللَّهُ لَآ إِلَٰهَ إِلَّا هُوَ', 1]]] }
 
   return JSON.stringify({ s, p })
 }
@@ -75,6 +75,8 @@ test('pages turn, the cursor walks ayahs, and a bookmark is kept', async ($, on)
 
     await ui.input({ key: 'goto', text: '2:255' })
     expect(await pageNumber()).toBe('٤٢')
+    // A hizb quarter starts on page 42 of the fixture; none on page 2.
+    expect((await ui.find({ type: 'Text', text: /الحزب/ }))?.text).toContain('ربع الحزب ٥')
 
     await ui.press({ key: 'bookmark' })
     expect(saved.get('position')).toEqual({ page: 2, cursor: 1 })
