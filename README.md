@@ -13,7 +13,18 @@ In Claude Code:
 
 Then run `/quran`. For better Arabic in the terminal, run `/quran font` once and restart the terminal.
 
-See [plugins/quran/README.md](plugins/quran/README.md) for the commands, keys and credits.
+| Command | Does |
+| --- | --- |
+| `/quran` | Opens the Mushaf where you stopped |
+| `/quran 50` | Opens page 50 |
+| `/quran 2:255` | Opens the page of Surah 2, ayah 255, with that ayah highlighted |
+| `/quran b` | Opens your bookmarked ayah |
+| `/quran font` | Sets up the terminal's Arabic font (Linux; prints the steps elsewhere) |
+| `/quran font off` | Removes that font setup |
+
+Inside the pane: `n`/`p` page, `j`/`k` ayah, `m` bookmark, `b` go to bookmark, `t` tashkeel, `d` day/night, `g` letter gaps, `Esc` close.
+
+See [plugins/quran/README.md](plugins/quran/README.md) for what each does, what the font setup changes, and the credits.
 
 ## Develop
 

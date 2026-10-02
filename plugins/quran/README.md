@@ -2,33 +2,45 @@
 
 Read the whole Quran inside Claude Code, page by page, laid out like the Madinah Mushaf: the same 604 pages, the same 15 lines per page and the same words on each line, with surah headers and the basmala where the printed Mushaf puts them.
 
-## Use
+## Commands
 
 | Command | Does |
 | --- | --- |
-| `/quran` | Opens the Mushaf where you stopped |
-| `/quran 50` | Opens page 50 |
-| `/quran 2:255` | Opens the page of Surah 2, ayah 255, with that ayah selected |
-| `/quran b` | Opens your bookmark |
-| `/quran font` | Makes your terminal draw Arabic in a Uthmani-style font (see below) |
-| `/quran font off` | Undoes `/quran font` |
+| `/quran` | Opens the Mushaf at the page and ayah where you stopped (page 1 the first time) |
+| `/quran 50` | Opens page 50. A number past either end opens page 1 or page 604 |
+| `/quran 2:255` | Opens the page of Surah 2, ayah 255, with that ayah highlighted. `2.255` works too. An ayah that does not exist (`/quran 2:999`) answers `No ayah 2:999` |
+| `/quran b` | Opens the page of your bookmarked ayah, with it highlighted. `/quran bookmark` works too |
+| `/quran font` | Sets up the terminal's Arabic font: on Linux it installs the fonts and a fontconfig rule, elsewhere it prints the steps (see [The Arabic font](#the-arabic-font)) |
+| `/quran font off` | On Linux, removes the fontconfig rule `/quran font` added. The font files stay installed, unused |
 
-Keys inside the pane:
+Anything else answers `Not a page, surah:ayah, or "b"`.
+
+## Keys inside the pane
 
 | Key | Does |
 | --- | --- |
-| `n` / `p` | Next / previous page |
-| `j` / `k` | Next / previous ayah (highlighted) |
-| `m` | Bookmark the highlighted ayah |
-| `b` | Go to the bookmark |
-| `d` | Day / night page |
+| `n` | Next page |
+| `p` | Previous page |
+| `j` | Next ayah. The highlight moves; past the page's last ayah it turns to the next page |
+| `k` | Previous ayah. Before the page's first ayah it turns back to the last ayah of the page before |
+| `m` | Bookmarks the highlighted ayah (one bookmark; a new one replaces it) |
+| `b` | Goes to the bookmarked ayah (with none set, it says to press `m` first) |
 | `t` | Tashkeel on / off |
-| `g` | Letter gaps on / off (off at first): a cell after letters that do not join the next one (أَ حْمِلُكُمْ), and 2 between words |
-| `Esc` | Close |
+| `d` | Day / night page |
+| `g` | Letter gaps on / off (off at first): a cell after letters that do not join the next one (أَ حْمِلُكُمْ), and 2 between words. Terminal only |
+| `Esc` | Closes the pane |
 
-Your page, the highlighted ayah, the bookmark and the day/night choice are kept between sessions.
+The keys are also buttons under the page, for a mouse or a touch screen. Below them, a **Go to** field takes the same page, `surah:ayah` or `b` as the command.
 
-The page keeps the Mushaf's own lines when the pane has room for its longest line (usually 65 to 80 columns, plus 6 for the frame). In a narrower pane the text reflows to fit, with the same highlights and bookmarks.
+## What is kept
+
+Your page, the highlighted ayah, the bookmark and the day/night choice are kept between sessions. Tashkeel and letter gaps go back to their defaults (tashkeel on, gaps off) in each new session.
+
+## The page
+
+The top line names the surah and the juz; the bottom shows the page number and, on a page where a hizb quarter starts, which one (ربع الحزب ٥). Each ayah ends with its number in ﴾ ﴿.
+
+The page keeps the Mushaf's own lines when the pane has room for its longest line (usually 65 to 80 columns, plus 6 for the frame). In a narrower pane the text reflows to fit, with the same highlights and bookmarks. When the surah and the juz do not fit on one line, they take a line each.
 
 In the Claude desktop and mobile apps and in VS Code, the page is set in the app's own font, which joins the letters and orders the text itself. On a phone the page flows like a book, and on a wide screen it keeps the Mushaf's lines. The mobile app has no text field yet, so going to a page there is by the buttons or `/quran 50`.
 
@@ -38,6 +50,8 @@ Terminals draw text in their own monospace font, and most monospace fonts draw A
 
 - **Linux** (fontconfig): installs Vazir Code Quran and Kawkab Mono to `~/.local/share/fonts`, and adds one file, `~/.config/fontconfig/conf.d/60-quran-arabic.conf`. With it, monospace fonts give their Arabic over to Vazir Code Quran, and to Kawkab Mono for the few marks it lacks, such as the alef wasla (ٱ). Vazir Code Quran is Vazir Code, a monospace font whose alef stands clear of the next letter, with its joining strokes lengthened so joined letters meet whatever your terminal's cell width. Latin text keeps your font. Restart the terminal after running it. `/quran font off` removes the file.
 - **macOS, Windows, others**: the command prints the setting to change in iTerm2, WezTerm, Windows Terminal and others. Both fonts are in this mod's `fonts/` folder.
+
+What it changes on Linux: the rule is for your user only, and covers Arabic drawn in any monospace font, not only this pane. Every terminal, and any app set to a monospace font (a code editor, for one), draws Arabic in Vazir Code Quran from then on. Proportional text (browsers, the desktop, documents) keeps its own Arabic font.
 
 A terminal still puts every letter in a fixed-width cell, so the page reads like the Mushaf in a plainer hand: the same lines and words, without the calligraphy's stretched letters and stacked words.
 
