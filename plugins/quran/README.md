@@ -38,7 +38,7 @@ In the terminal, click the page once and it takes the arrows too: `←` next pag
 
 ## While Claude works
 
-When Claude has been working on one task (one prompt) for 2 minutes, the pane opens on its own at your page, without taking the keyboard, so you can read while you wait. A task that ends sooner opens nothing, and the pane stays open after the task ends. The option **Open while Claude works (minutes)** (`openAfterMinutes`) sets the minutes, in the `/config` menu; 0 turns it off.
+When Claude has been working on one task (one prompt) for 2 minutes, the pane opens on its own at your page, without taking the keyboard, so you can read while you wait. A task that ends sooner opens nothing, and the pane stays open after the task ends. The option **Open while Claude works (minutes)** (`openAfterMinutes`) sets the minutes: `/plugin configure quran@claude-quran` in Claude Code; 0 turns it off. Installing says this option is "not yet set": left so, it is 2 minutes.
 
 Opened this way, Claude Code seats the pane only in a terminal at least 144 columns wide (110 once you have opened the Quran yourself and not closed it by hand); in a narrower one it waits until the terminal widens or you run `/quran`.
 

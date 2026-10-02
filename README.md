@@ -26,7 +26,7 @@ Then run `/quran`. For better Arabic in the terminal, run `/quran font` once and
 
 Inside the pane: `n`/`p` page, `j`/`k` ayah, `m` bookmark, `b` go to bookmark, `t` tashkeel, `d` day/night, `g` letter gaps, `Esc` close. Click the page once and `←`/`→` turn it too.
 
-When Claude has been working on one task for 2 minutes, the Quran opens on its own (change the minutes, or 0 to turn it off, in `/config`).
+When Claude has been working on one task for 2 minutes, the Quran opens on its own (change the minutes, or 0 to turn it off, with `/plugin configure quran@claude-quran`).
 
 See [plugins/quran/README.md](plugins/quran/README.md) for what each does, what the font setup changes, and the credits.
 
