@@ -105,8 +105,10 @@ test('justified lines fill the column exactly; the last line is centred', () => 
   expect(last.length - last.trimStart().length).toBeGreaterThan(0)
 })
 
-test('kashida stretches a joint, never lam-alef or a non-joining letter', () => {
+test('kashida stretches a word before its last letter only', () => {
   expect(kashida('قُلُوبِهِمْ')).toBe('قُلُوبِهِـمْ')
+  // Its only joint is after the first letter: print never stretches there.
+  expect(kashida('عَذَابٌ')).toBeUndefined()
   expect(kashida('لَا')).toBeUndefined()
   expect(kashida('دَارُ')).toBeUndefined()
 })

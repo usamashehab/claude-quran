@@ -109,27 +109,26 @@ export function spaceOut(word: string): string {
 const DUAL_JOINING = /[بتثجحخسشصضطظعغفقكلمنهيىئ]/
 const ALEF = /[اأإآٱ]/
 
-// The word with one kashida at its last joint, as the Mushaf stretches a line;
-// undefined when no joint takes one.
+// The word with one kashida before its last letter, where print stretches a
+// word (قُلُوبِهِـمْ); undefined when its last two letters do not join (عَذَابٌ),
+// as a kashida early in a word, after its first letter, reads wrong.
 export function kashida(word: string): string | undefined {
   const chars = Array.from(word)
-  let at = -1
-  chars.forEach((char, i) => {
-    if (!DUAL_JOINING.test(char)) {
-      return
-    }
-    let next = i + 1
-    while (next < chars.length && /\p{M}/u.test(chars[next] ?? '')) {
-      next++
-    }
-    const following = chars[next]
-    // Lam then alef is one ligature; a kashida would split it.
-    if (following && LETTER.test(following) && following !== 'ء' && !(char === 'ل' && ALEF.test(following))) {
-      at = next
-    }
-  })
+  const letters = chars.flatMap((char, at) => (/\p{M}/u.test(char) ? [] : [at]))
+  const last = letters.at(-1)
+  const before = letters.at(-2)
+  if (letters.length < 3 || last === undefined || before === undefined) {
+    return undefined
+  }
+  const joins = chars[before] ?? ''
+  const final = chars[last] ?? ''
+  // Lam then alef is one ligature; a kashida would split it.
+  const isLamAlef = joins === 'ل' && ALEF.test(final)
+  if (!DUAL_JOINING.test(joins) || !LETTER.test(final) || final === 'ء' || isLamAlef) {
+    return undefined
+  }
 
-  return at === -1 ? undefined : [...chars.slice(0, at), 'ـ', ...chars.slice(at)].join('')
+  return [...chars.slice(0, last), 'ـ', ...chars.slice(last)].join('')
 }
 
 // Takes up to half of `free` with kashidas, one per word, longest words first.
