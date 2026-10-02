@@ -29,4 +29,4 @@ Rebuild the page data (`plugins/quran/data/quran.json`) from the Quran.com and A
 
 ## License
 
-The code is MIT licensed (see [LICENSE](LICENSE)). The bundled Kawkab Mono font is under the SIL Open Font License 1.1 (`plugins/quran/fonts/OFL.txt`), and the Quran text and page layout come from the sources credited in [plugins/quran/README.md](plugins/quran/README.md).
+The code is MIT licensed (see [LICENSE](LICENSE)). The bundled fonts keep their own licenses: Vazir Code under the Bitstream Vera license (`plugins/quran/fonts/Vazir-Code-LICENSE.txt`) and Kawkab Mono under the SIL Open Font License 1.1 (`plugins/quran/fonts/KawkabMono-OFL.txt`), and the Quran text and page layout come from the sources credited in [plugins/quran/README.md](plugins/quran/README.md).

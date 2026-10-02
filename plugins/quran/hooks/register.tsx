@@ -2,7 +2,7 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Bookmark, Theme } from '../types'
-import { CONF_NAME, FONT_FILES, FONTCONFIG, OTHER_SYSTEMS } from './font'
+import { CONF_NAME, FAMILIES, FONT_FILES, FONTCONFIG, OTHER_SYSTEMS } from './font'
 import { cells, GUARD, inline, justify, layout, naturalWidth, spaceOut } from './layout'
 import type { Piece, Token } from './layout'
 
@@ -246,32 +246,33 @@ async function fontOn($: EngineInterface): Promise<string> {
     return OTHER_SYSTEMS
   }
   const { conf, fonts } = await fontPaths($)
-  const installed = await runQuietly($, ['fc-list', 'Kawkab Mono', 'family'])
-  if (!installed) {
+  if (!(await runQuietly($, ['fc-list', '--version']))) {
     return 'fontconfig was not found (fc-list). ' + OTHER_SYSTEMS
   }
-  if (installed.stdout.trim() === '') {
-    await runQuietly($, ['mkdir', '-p', fonts])
-    for (const file of FONT_FILES) {
-      await runQuietly($, ['cp', `${$.plugin.root}/fonts/${file}`, `${fonts}/${file}`])
-    }
+  await runQuietly($, ['mkdir', '-p', fonts])
+  for (const file of FONT_FILES) {
+    await runQuietly($, ['cp', `${$.plugin.root}/fonts/${file}`, `${fonts}/${file}`])
   }
   await $.fs.write(conf, FONTCONFIG)
   await runQuietly($, ['fc-cache', '-f'])
-  const left = await runQuietly($, ['fc-list', ':spacing=mono:charset=0627', 'family'])
-  if (left && left.stdout.trim() !== '') {
+  const listed = await runQuietly($, ['fc-list', ':spacing=mono:charset=0627', 'family'])
+  const others = (listed?.stdout ?? '')
+    .split('\n')
+    .map(family => family.trim())
+    .filter(family => family !== '' && !FAMILIES.includes(family))
+  if (others.length > 0) {
     return [
-      `Wrote ${conf}, but these monospace fonts still draw Arabic: ${left.stdout.trim().split('\n').join(', ')}.`,
+      `Wrote ${conf}, but these monospace fonts still draw Arabic: ${others.join(', ')}.`,
       'Run `fc-cache -f` again, or log out and in, then restart your terminal.',
     ].join(' ')
   }
 
-  return `Arabic now uses Kawkab Mono (${conf}). Restart your terminal to see it; /quran font off undoes it.`
+  return `Arabic now uses ${FAMILIES.join(', then ')} (${conf}). Restart your terminal to see it; /quran font off undoes it.`
 }
 
 async function fontOff($: EngineInterface): Promise<string> {
   if (!(await isLinux($))) {
-    return 'Nothing to undo here: remove Kawkab Mono from your terminal font settings.'
+    return 'Nothing to undo here: remove Vazir Code and Kawkab Mono from your terminal font settings.'
   }
   const { conf } = await fontPaths($)
   await runQuietly($, ['rm', '-f', conf])
