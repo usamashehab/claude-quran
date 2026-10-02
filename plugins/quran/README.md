@@ -6,7 +6,7 @@ Read the whole Quran inside Claude Code, page by page, laid out like the Madinah
 
 | Command | Does |
 | --- | --- |
-| `/quran` | Opens the Mushaf at the page and ayah where you stopped (page 1 the first time) |
+| `/quran` | Opens the Mushaf at the page where you stopped (page 1 the first time) |
 | `/quran 50` | Opens page 50. A number past either end opens page 1 or page 604 |
 | `/quran 2:255` | Opens the page of Surah 2, ayah 255, with that ayah highlighted. `2.255` works too. An ayah that does not exist (`/quran 2:999`) answers `No ayah 2:999` |
 | `/quran b` | Opens the page of your bookmarked ayah, with it highlighted. `/quran bookmark` works too |
@@ -21,9 +21,9 @@ Anything else answers `Not a page, surah:ayah, or "b"`.
 | --- | --- |
 | `n` | Next page |
 | `p` | Previous page |
-| `j` | Next ayah. The highlight moves; past the page's last ayah it turns to the next page |
-| `k` | Previous ayah. Before the page's first ayah it turns back to the last ayah of the page before |
-| `m` | Bookmarks the highlighted ayah (one bookmark; a new one replaces it) |
+| `j` | Next ayah: highlights the page's first ayah, then moves on; past the page's last ayah it turns to the next page |
+| `k` | Previous ayah: highlights the page's last ayah, then moves back; before the page's first ayah it turns back to the last ayah of the page before |
+| `m` | Bookmarks the highlighted ayah (one bookmark; a new one replaces it); with none highlighted, it says to pick one with `j` or `k` |
 | `b` | Goes to the bookmarked ayah (with none set, it says to press `m` first) |
 | `t` | Tashkeel on / off |
 | `d` | Day / night page |
@@ -34,7 +34,7 @@ The keys are also buttons under the page, for a mouse or a touch screen. Below t
 
 ## What is kept
 
-Your page, the highlighted ayah, the bookmark and the day/night choice are kept between sessions. Tashkeel and letter gaps go back to their defaults (tashkeel on, gaps off) in each new session.
+A page opens with no ayah highlighted; `j` or `k` picks one, and going to `surah:ayah` or the bookmark highlights that ayah. Your page, the bookmark and the day/night choice are kept between sessions. Tashkeel and letter gaps go back to their defaults (tashkeel on, gaps off) in each new session.
 
 ## The page
 

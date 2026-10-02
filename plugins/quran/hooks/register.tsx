@@ -13,7 +13,9 @@ const PANE_COLUMNS = 88
 const BASMALA = 'بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ'
 
 const page = atom({ plugin: 'quran', key: 'page' } as const, 1)
-const cursor = atom({ plugin: 'quran', key: 'cursor' } as const, 0)
+// The highlighted ayah's index on the page; NONE until j or k picks one.
+const NONE = -1
+const cursor = atom({ plugin: 'quran', key: 'cursor' } as const, NONE)
 const bookmark = atom({ plugin: 'quran', key: 'bookmark' } as const, null)
 const isPlain = atom({ plugin: 'quran', key: 'isPlain' } as const, false)
 const isSpaced = atom({ plugin: 'quran', key: 'isSpaced' } as const, false)
@@ -128,12 +130,13 @@ async function persist($: EngineInterface) {
 function reveal($: EngineInterface, index: number) {
   $.clock.after(80, () => {
     const line = lineOfAyah.get(index)
-    const to = index === 0 || line === undefined ? 'start' : { key: `l${line}` }
+    const to = index <= 0 || line === undefined ? 'start' : { key: `l${line}` }
     void $.ui.scroll({ in: PANE, to, block: 'center' }).catch(() => {})
   })
 }
 
-async function goTo($: EngineInterface, target: number, at: number | 'last' = 0) {
+// A page turn shows the page with no ayah highlighted; `at` picks one.
+async function goTo($: EngineInterface, target: number, at: number | 'last' = NONE) {
   const q = await load($)
   const next = clampPage(target)
   const index = at === 'last' ? ayahsOf(q, next).length - 1 : at
@@ -146,12 +149,14 @@ async function goTo($: EngineInterface, target: number, at: number | 'last' = 0)
 async function moveCursor($: EngineInterface, step: 1 | -1) {
   const q = await load($)
   const current = await read($, page)
-  const index = (await read($, cursor)) + step
+  const at = await read($, cursor)
+  // With none highlighted, j picks the page's first ayah and k its last.
+  const index = at === NONE ? (step === 1 ? 0 : ayahsOf(q, current).length - 1) : at + step
   if (index < 0) {
     return current > 1 ? goTo($, current - 1, 'last') : undefined
   }
   if (index >= ayahsOf(q, current).length) {
-    return current < PAGES ? goTo($, current + 1) : undefined
+    return current < PAGES ? goTo($, current + 1, 0) : undefined
   }
 
   return goTo($, current, index)
@@ -162,6 +167,8 @@ async function markCursor($: EngineInterface) {
   const current = await read($, page)
   const picked = ayahsOf(q, current)[await read($, cursor)]
   if (!picked) {
+    $.ui.toast('Pick an ayah with j or k first, then press m')
+
     return
   }
   const mark: Bookmark = { page: current, ...picked }
@@ -315,10 +322,11 @@ export const register: Register = on => {
       description: 'Open the Quran: /quran [page | surah:ayah | b | font | font off]',
       argumentHint: '[page | surah:ayah | b | font | font off]',
     })
-    const position = (await $.store.get('position')) as { page: number; cursor: number } | undefined
+    // A session opens at the page where the last stopped, no ayah highlighted:
+    // the bookmark is what keeps an ayah.
+    const position = (await $.store.get('position')) as { page: number } | undefined
     if (position) {
       await update($, page, () => clampPage(position.page))
-      await update($, cursor, () => position.cursor)
     }
     const mark = (await $.store.get('bookmark')) as Bookmark | undefined
     if (mark) {

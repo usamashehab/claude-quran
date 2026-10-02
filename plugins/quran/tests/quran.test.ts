@@ -67,8 +67,10 @@ test('pages turn, the cursor walks ayahs, and a bookmark is kept', async ($, on)
 
     await ui.press({ key: 'next' })
     expect(await pageNumber()).toBe('٢')
-    expect(saved.get('position')).toEqual({ page: 2, cursor: 0 })
+    // A page turn highlights no ayah; j picks the first, then the next.
+    expect(saved.get('position')).toEqual({ page: 2, cursor: -1 })
 
+    await ui.press({ key: 'down' })
     await ui.press({ key: 'down' })
     await ui.press({ key: 'mark' })
     expect(saved.get('bookmark')).toEqual({ page: 2, surah: 2, ayah: 2 })
@@ -135,6 +137,7 @@ test('the apps, phones included, get each Mushaf line as one run of text', async
     expect(await ui.find({ type: 'Text', text: /ذَٰلِكَ ٱلْكِتَٰبُ/ })).toBeDefined()
     expect(await ui.findAll({ type: 'Text', text: /ـ/ })).toHaveLength(0)
 
+    await ui.press({ key: 'down' })
     await ui.press({ key: 'down' })
     await ui.press({ key: 'mark' })
     expect(saved.get('bookmark')).toEqual({ page: 2, surah: 2, ayah: 2 })
