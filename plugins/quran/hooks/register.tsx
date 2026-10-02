@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, Register, Timer } from 'claude-code'
 
 import type { Bookmark, Theme } from '../types'
 import { CONF_NAME, FAMILIES, FONT_FILES, FONTCONFIG, OTHER_SYSTEMS } from './font'
@@ -407,7 +407,33 @@ function tokensOf(
   return tokens
 }
 
-export const register: Register = on => {
+export const register: Register = (on, options) => {
+  // While Claude works on one task this long, the pane opens on its own
+  // (the openAfterMinutes option; 0 turns it off). The task ending first cancels it.
+  const minutes = Number(options.openAfterMinutes ?? 2)
+  let working: { turnId: string; timer: Timer } | undefined
+  on('turn.start', async ($, e, next) => {
+    working?.timer.cancel()
+    working = undefined
+    if (minutes > 0) {
+      const timer = $.clock.after(minutes * 60_000, () => {
+        void $.ui.open({ id: PANE, title: 'القرآن الكريم', closeOnEscape: true, columns: PANE_COLUMNS }).catch(() => {})
+      })
+      working = { turnId: e.turnId, timer }
+    }
+
+    return next(e)
+  })
+  // A subagent's turns end inside the task; only the task's own end counts.
+  on('turn.complete', async ($, e, next) => {
+    if (e.agentId === undefined && e.turnId === working?.turnId) {
+      working.timer.cancel()
+      working = undefined
+    }
+
+    return next(e)
+  })
+
   on('session.start', async ($, e, next) => {
     await $.command.register({
       name: 'quran',

@@ -1,8 +1,17 @@
 {
   "name": "quran",
-  "version": "0.5.15",
+  "version": "0.5.16",
   "description": "Read the Quran in a pane, laid out like the Madinah Mushaf (604 pages, 15 lines), with a saved place and a bookmarked ayah",
   "types": "./types/index.d.ts",
+  "userConfig": {
+    "openAfterMinutes": {
+      "type": "number",
+      "title": "Open while Claude works (minutes)",
+      "description": "Opens the Quran pane when Claude has been working on one task for this many minutes. 0 turns it off.",
+      "default": 2,
+      "min": 0
+    }
+  },
   "author": {
     "name": "Usama Shehab",
     "email": "usama.shehab173@gmail.com"

@@ -1,4 +1,5 @@
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
+import type { Engine } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
 import { cells, fitHeight, kashida, layout, spaceOut } from '../hooks/layout'
@@ -217,4 +218,48 @@ test('/quran spacing sets GNOME Terminal rows to 1.2 and spacing off puts back t
   await quran('spacing')
   expect((await quran('spacing off')).text).toContain('back to 1.1')
   expect(sets).toEqual(['1.2', '1.2', '1.1'])
+})
+
+// Turns as the engine raises them, the pane's opens recorded.
+function turns($: Engine, on: On) {
+  const clock = mock.clock(on)
+  const opened: string[] = []
+  on('ui.open', (_$, e) => {
+    opened.push(e.id)
+
+    return { value: { isPlaced: true } }
+  })
+  on('turn.start', (_$, e) => ({ turnId: e.turnId }))
+  on('turn.complete', (_$, e) => ({ text: e.answer }))
+  const start = (turnId: string) => $.turn.start({ text: 'task', turnId })
+  const end = (turnId: string, agentId?: string) =>
+    $.turn.complete({ answer: '', durationMs: 0, isAborted: false, turnId, reason: 'answer', ...(agentId ? { agentId } : {}) })
+
+  return { clock, opened, start, end }
+}
+
+test('a task still working after 2 minutes opens the Quran; one that ends sooner does not', async ($, on) => {
+  world(on)
+  const { clock, opened, start, end } = turns($, on)
+
+  await start('quick')
+  await clock.advance(119_000)
+  await end('quick')
+  await clock.advance(60_000)
+  expect(opened).toEqual([])
+
+  await start('long')
+  // A subagent's turn ending inside the task does not end it.
+  await end('long', 'agent-1')
+  await clock.advance(120_000)
+  expect(opened).toEqual(['quran'])
+})
+
+test('openAfterMinutes 0 never opens the Quran on its own', { options: { openAfterMinutes: 0 } }, async ($, on) => {
+  world(on)
+  const { clock, opened, start } = turns($, on)
+
+  await start('long')
+  await clock.advance(600_000)
+  expect(opened).toEqual([])
 })

@@ -36,6 +36,12 @@ The keys are also buttons under the page, for a mouse or a touch screen. Below t
 
 In the terminal, click the page once and it takes the arrows too: `←` next page and `→` previous page, as a Mushaf turns leftward; `↓` / `↑` next and previous ayah; Page Down / Page Up next and previous page. The letter keys keep working there. Until the page is clicked, Claude Code keeps the arrows for itself (`↑` and `↓` scroll the pane), and `Esc` hands them back.
 
+## While Claude works
+
+When Claude has been working on one task (one prompt) for 2 minutes, the pane opens on its own at your page, without taking the keyboard, so you can read while you wait. A task that ends sooner opens nothing, and the pane stays open after the task ends. The option **Open while Claude works (minutes)** (`openAfterMinutes`) sets the minutes, in the `/config` menu; 0 turns it off.
+
+Opened this way, Claude Code seats the pane only in a terminal at least 144 columns wide (110 once you have opened the Quran yourself and not closed it by hand); in a narrower one it waits until the terminal widens or you run `/quran`.
+
 ## What is kept
 
 A page opens with no ayah highlighted; `j` or `k` picks one, and going to `surah:ayah` or the bookmark highlights that ayah. The bookmarked ayah shows by its number, shaded and bold. Your page, the bookmark and the day/night choice are kept between sessions. Tashkeel and letter gaps go back to their defaults (tashkeel on, gaps off) in each new session.
