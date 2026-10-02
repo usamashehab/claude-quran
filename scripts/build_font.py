@@ -55,11 +55,11 @@ GRID, MARGIN, GAP, STEP_UP = 10, 2, 20, 10
 SIDE = 120
 # The kasra's height against the font's, so it fits under a dot in the row.
 KASRA_HEIGHT = 0.58
-# Marks are drawn this many units bolder (shadda, with its fine curls, less), those
-# above a letter this much larger, and the dagger alef bolder and taller still,
-# so a terminal's few pixels show them.
-MARK_BOLD, SHADDA_BOLD, DAGGER_BOLD = 26, 8, 40
-MARK_SCALE, DAGGER_TALL = 1.15, 1.45
+# Marks are drawn this many units bolder, those above a letter this much larger,
+# and the dagger alef bolder and taller still, so a terminal's few pixels show
+# them; shadda keeps its own size and weight, as its fine curls fill in otherwise.
+MARK_BOLD, DAGGER_BOLD = 10, 22
+MARK_SCALE, DAGGER_TALL = 1.25, 1.45
 LEFT, RIGHT, BOTTOM, TOP = -400, 1000, -700, 1300
 # How far a stroke reaches past the letter's edge: enough to meet the next
 # letter's stroke in a cell up to 0.5 + 2 * 0.08 em wide.
@@ -177,7 +177,7 @@ def bolder(value, by):
 def strengthen_marks(font):
     """Bolder marks, and larger ones over a letter, each kept to its edge nearest
     the letter so it sits where the font placed it."""
-    for mark in MARKS_OVER + [KASRA]:
+    for mark in [mark for mark in MARKS_OVER if mark not in SHADDAS] + [KASRA]:
         x0, y0, x1, y1 = bounds(font, mark)
         centre = (x0 + x1) / 2
         is_over = mark in MARKS_OVER
@@ -185,7 +185,7 @@ def strengthen_marks(font):
         tall = MARK_SCALE * (DAGGER_TALL if mark == DAGGER else 1) if is_over else 1
         wide = MARK_SCALE if is_over else 1
         value = mapped(outline(font, mark), fx=lambda x: centre + (x - centre) * wide, fy=lambda y: near + (y - near) * tall)
-        bold = DAGGER_BOLD if mark == DAGGER else SHADDA_BOLD if mark in SHADDAS else MARK_BOLD
+        bold = DAGGER_BOLD if mark == DAGGER else MARK_BOLD
         # Bolder about the near edge too: the outline grows away from the letter.
         shift = bold / 2 if is_over else -bold / 2
         save(font, mark, mapped(bolder(value, bold), fy=lambda y: y + shift))

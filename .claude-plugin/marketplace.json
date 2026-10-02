@@ -12,7 +12,7 @@
       "name": "quran",
       "source": "./plugins/quran",
       "description": "Read the Quran in a pane, laid out like the Madinah Mushaf (604 pages, 15 lines), with a saved place and a bookmarked ayah",
-      "version": "0.5.6",
+      "version": "0.5.7",
       "category": "productivity",
       "keywords": ["quran", "mushaf", "arabic", "reading"]
     }
