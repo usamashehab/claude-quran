@@ -3,7 +3,7 @@ import type { EngineInterface, Register } from 'claude-code'
 
 import type { Bookmark, Theme } from '../types'
 import { CONF_NAME, FAMILIES, FONT_FILES, FONTCONFIG, OTHER_SYSTEMS } from './font'
-import { cells, fitHeight, GUARD, inline, justify, naturalWidth, spaceOut, split } from './layout'
+import { cells, fitHeight, GUARD, inline, justify, layout, naturalWidth, spaceOut } from './layout'
 import type { Piece, Token } from './layout'
 
 const PANE = 'quran'
@@ -402,12 +402,12 @@ export const register: Register = on => {
     const padding = e.props.bodyColumns < 56 ? 1 : 2
     const room = e.props.bodyColumns - 2 - padding * 2
 
-    // The page is as wide as its longest Mushaf line, or the pane where that is
-    // narrower; there each Mushaf line takes two rows or more, so the page keeps
-    // the Mushaf's lines and still ends where the Mushaf ends it.
+    // The page is as wide as its longest Mushaf line. Where the pane has room for
+    // that, the page keeps the Mushaf's own lines; narrower, its text reflows.
     const lineTokens = new Map(sheet.l.filter(isWords).map(line => [line, tokensOf(line, indexOf, unmarked, lettersApart)]))
     const pageWidth = Math.max(30, ...[...lineTokens.values()].map(tokens => naturalWidth(tokens, space)))
-    const width = Math.max(10, Math.min(room, pageWidth))
+    const isMushaf = room >= pageWidth
+    const width = isMushaf ? pageWidth : Math.max(10, room)
 
     // Only the ayah picked with j or k is shaded; the bookmarked one shows by its
     // number alone, shaded and bold, so no ayah is shaded by default.
@@ -491,42 +491,45 @@ export const register: Register = on => {
     }
 
     const rows: JSX.Element[] = []
-    // Whether each row starts a Mushaf line: a blank row goes only before those.
-    const startsLine: boolean[] = []
-    const addWords = (pieces: Piece[], isStart = true) => {
+    const addWords = (pieces: Piece[]) => {
       const n = rows.length
       for (const { ayah } of pieces) {
         if (ayah !== null && !lineOfAyah.has(ayah)) {
           lineOfAyah.set(ayah, n)
         }
       }
-      startsLine.push(isStart)
       rows.push(
         <Box key={`l${n}`} justifyContent="center">
           {words(pieces)}
         </Box>,
       )
     }
-    const addRow = (row: JSX.Element) => {
-      startsLine.push(true)
-      rows.push(<Box key={`l${rows.length}`}>{row}</Box>)
-    }
+    const addRow = (row: JSX.Element) => rows.push(<Box key={`l${rows.length}`}>{row}</Box>)
 
     lineOfAyah = new Map()
+    let run: Token[] = []
+    const flush = () => {
+      if (run.length > 0) {
+        // An app wraps the run itself, as a paragraph.
+        for (const pieces of isCells ? layout(run, width, space) : [inline(run)]) {
+          addWords(pieces)
+        }
+      }
+      run = []
+    }
     for (const line of sheet.l) {
       if (isWords(line)) {
         const tokens = lineTokens.get(line) ?? []
-        // Pages 1 and 2 are set centred in the Mushaf; a very short line would stretch too far.
-        const isCentred = current <= 2 || naturalWidth(tokens, space) < pageWidth * 0.4
-        if (!isCells) {
-          // The app sets the line in its own font, wrapping it if it must.
-          addWords(inline(tokens))
+        if (!isMushaf) {
+          run.push(...tokens)
           continue
         }
-        // As in the Mushaf, every row runs the full width, split rows too.
-        split(tokens, width, space).forEach((part, i) => addWords(justify(part, width, isCentred, space), i === 0))
+        // Pages 1 and 2 are set centred in the Mushaf; a very short line would stretch too far.
+        const isCentred = current <= 2 || naturalWidth(tokens, space) < width * 0.4
+        addWords(isCells ? justify(tokens, width, isCentred, space) : inline(tokens))
         continue
       }
+      flush()
       if (line === null) {
         addRow(plainLine(''))
       } else if ('h' in line) {
@@ -535,6 +538,7 @@ export const register: Register = on => {
         addRow(plainLine(spaceLine(show(BASMALA))))
       }
     }
+    flush()
 
     const surahNames = [...new Set(ayahs.map(one => one.surah))]
       .map(s => `سورة ${show(surahOf(q, s)[0])}`)
@@ -585,7 +589,7 @@ export const register: Register = on => {
       bodyRows: isCells ? e.props.scroll.bodyRows : Infinity,
       bodyColumns: e.props.bodyColumns,
       rows: rows.length,
-      gaps: startsLine.filter(Boolean).length - 1,
+      gaps: rows.length - 1,
       frame: 2 + (isHeaderOneLine ? 1 : 2) + 2 + 1 + (sheet.q ? 1 : 0),
       hasInput: Input !== undefined,
       labels: controls.map(control => [control.label, control.short]),
@@ -606,7 +610,7 @@ export const register: Register = on => {
             // On the terminal a blank row between lines keeps the tashkeel of one
             // line clear of the next; an app's line height does that itself.
             <Box key={`r${i}`} flexDirection="column">
-              {i > 0 && isCells && fit.isSpaced && startsLine[i] && plainLine('')}
+              {i > 0 && isCells && fit.isSpaced && plainLine('')}
               {row}
             </Box>
           ))}

@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 import type { On } from 'claude-code'
 
-import { cells, fitHeight, justify, kashida, spaceOut, split } from '../hooks/layout'
+import { cells, fitHeight, kashida, layout, spaceOut } from '../hooks/layout'
 
 // A small stand-in for data/quran.json: the tests cannot read files.
 // Pages hold Mushaf lines; every page but the few the test visits holds one ayah of surah 114.
@@ -94,16 +94,17 @@ test('pages turn, the cursor walks ayahs, and a bookmark is kept', async ($, on)
   }
 })
 
-test('a Mushaf line too wide for the pane splits into rows that each fill it, in order', () => {
+test('justified lines fill the column exactly; the last line is centred', () => {
   const words = 'إِنَّ ٱللَّهَ لَا يَسْتَحْىِۦٓ أَن يَضْرِبَ مَثَلًا مَّا بَعُوضَةً فَمَا فَوْقَهَا'.split(' ')
   const tokens = words.map((text, i) => ({ text, ayah: i < 5 ? 0 : 1, tone: 'text' as const }))
-  const parts = split(tokens, 24)
+  const lines = layout(tokens, 24)
 
-  expect(parts.length).toBeGreaterThan(1)
-  expect(parts.flat()).toEqual(tokens)
-  for (const part of parts) {
-    expect(cells(justify(part, 24, false).map(piece => piece.text).join(''))).toBe(24)
+  expect(lines.length).toBeGreaterThan(1)
+  for (const line of lines) {
+    expect(cells(line.map(piece => piece.text).join(''))).toBe(24)
   }
+  const last = lines.at(-1)?.map(piece => piece.text).join('') ?? ''
+  expect(last.length - last.trimStart().length).toBeGreaterThan(0)
 })
 
 test('kashida stretches a word before its last letter only', () => {
@@ -124,7 +125,7 @@ test('spacing opens a cell after letters that do not join the next one', () => {
   expect(spaceOut('عَلَيْهِ')).toBe('عَلَيْهِ')
 })
 
-test('the apps, phones included, get each Mushaf line as one run of text', async ($, on) => {
+test('the apps, phones included, get each ayah as one run of text', async ($, on) => {
   const saved = world(on)
   for (const surface of ['mobile', 'vscode', 'desktop'] as const) {
     saved.clear()
