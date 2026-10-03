@@ -10,7 +10,7 @@ A Claude Code plugin marketplace with one plugin, **quran**: the Quran in a Clau
 
 ## Install
 
-You need [Claude Code](https://claude.com/claude-code). Pick one way.
+You need [Claude Code](https://claude.com/claude-code). Pick one way. Install it at **user scope** so `/quran` works in every folder; project or local scope limits it to the folder you installed it from.
 
 **Inside Claude Code** (type these at the prompt):
 
@@ -20,16 +20,18 @@ You need [Claude Code](https://claude.com/claude-code). Pick one way.
 /reload-plugins
 ```
 
+When `/plugin install` asks where to install, pick the **user** scope (for you, in all projects).
+
 **From a shell** (then restart Claude Code, or run `/reload-plugins` in a running one):
 
 ```
 claude plugin marketplace add usamashehab/claude-quran
-claude plugin install quran@claude-quran
+claude plugin install quran@claude-quran --scope user
 ```
 
 **Claude desktop app**: in Settings → Plugins, use **Add** to add the marketplace `usamashehab/claude-quran`, then install **quran** from it.
 
-Then run `/quran`. Check that it is installed and enabled with `claude plugin list`, which should show `quran@claude-quran` with `Status: ✔ enabled`.
+Then run `/quran`. Check that it is installed and enabled with `claude plugin list`, which should show `quran@claude-quran` with `Scope: user` and `Status: ✔ enabled`.
 
 ## Set it up
 
@@ -91,8 +93,8 @@ Follow these steps in order, running each command in a shell and checking its ou
 1. Check Claude Code is installed: `claude --version`. If it is not found, stop and tell the user to install Claude Code first.
 2. Add the marketplace: `claude plugin marketplace add usamashehab/claude-quran`. If it says the marketplace is already on disk, also run `claude plugin marketplace update claude-quran` to get the latest version.
 3. Ask the user how many minutes Claude should work on one task before the Quran opens on its own (2 if they have no preference, 0 to never open it on its own). Call it N.
-4. Install: `claude plugin install quran@claude-quran --config openAfterMinutes=N`. If it says the plugin is already installed, run `claude plugin update quran@claude-quran`, then `echo '{"openAfterMinutes":"N"}' | claude plugin configure quran@claude-quran --values-stdin`.
-5. Verify: `claude plugin list` must show `quran@claude-quran` with `Status: ✔ enabled`. If it shows disabled, run `claude plugin enable quran@claude-quran`. `claude plugin configure quran@claude-quran` must show `openAfterMinutes` as set.
+4. Install: `claude plugin install quran@claude-quran --scope user --config openAfterMinutes=N`. If it says the plugin is already installed, run `claude plugin update quran@claude-quran`, then `echo '{"openAfterMinutes":"N"}' | claude plugin configure quran@claude-quran --values-stdin`.
+5. Verify: `claude plugin list` must show `quran@claude-quran` with `Scope: user` and `Status: ✔ enabled`. If the scope is `project` or `local`, run `claude plugin uninstall quran@claude-quran --scope project` (or `--scope local`) from that folder, then install again with `--scope user`. If it shows disabled, run `claude plugin enable quran@claude-quran`. `claude plugin configure quran@claude-quran` must show `openAfterMinutes` as set.
 6. Do not change fonts, fontconfig or terminal settings yourself. Tell the user they can run these inside Claude Code, and what each changes: `/quran font` (on Linux, makes Arabic in every monospace font use the bundled fonts; restart the terminal after; `/quran font off` undoes it) and `/quran spacing` (GNOME Terminal only: row height 1.2 in its default profile; `/quran spacing off` undoes it).
 7. Tell the user to restart Claude Code (or run `/reload-plugins`), then type `/quran` to open the Mushaf.
 
