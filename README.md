@@ -2,6 +2,12 @@
 
 A Claude Code plugin marketplace with one plugin, **quran**: the Quran in a Claude Code pane, laid out like the Madinah Mushaf (604 pages, 15 lines per page), with your place saved and a bookmarked ayah.
 
+![The Quran pane beside a Claude Code session: page 42, with Ayat al-Kursi (2:255) highlighted](docs/screenshots/page-day.png)
+
+<img src="docs/screenshots/page-night.png" alt="Page 50, the start of Surah Al Imran, in night mode" width="420">
+
+*Above: `/quran 2:255` in the default day theme. Below: page 50 in night mode (`d`). Both in GNOME Terminal after `/quran font`.*
+
 ## Install
 
 You need [Claude Code](https://claude.com/claude-code). Pick one way.

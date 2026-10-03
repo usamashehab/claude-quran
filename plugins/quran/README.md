@@ -48,6 +48,8 @@ A page opens with no ayah highlighted; `j` or `k` picks one, and going to `surah
 
 ## The page
 
+![Page 42 in the terminal, Ayat al-Kursi highlighted](../../docs/screenshots/page-day.png)
+
 The top line names the surah and the juz; the bottom shows the page number and, on a page where a hizb quarter starts, which one (ربع الحزب ٥). Each ayah ends with its number in ﴾ ﴿.
 
 In the terminal the whole page fits the pane's height, with no scrolling, down to a pane about as tall as its lines: when the pane is short, the page drops the blank rows between its lines, then the Go to field, then shortens the button labels. For more room between lines whatever the pane's height, `/quran spacing` makes the terminal's rows taller.
